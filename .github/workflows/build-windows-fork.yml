@@ -1,0 +1,76 @@
+name: Build Windows (Fork)
+
+# Triggers manually from the Actions tab or via gh CLI.
+# Produces an unsigned Windows NSIS installer as an artifact.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Windows installer
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      TARGET: x86_64-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Add Rust target
+        run: rustup target add "$env:TARGET"
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            .
+            desktop/src-tauri
+          shared-key: fork-windows-release
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "11"
+
+      - name: Install desktop dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build sidecars
+        run: |
+          cargo build --release --target "$env:TARGET" -p buzz-acp -p buzz-agent -p buzz-dev-mcp -p git-credential-nostr -p buzz-cli
+          bash ./scripts/bundle-sidecars.sh "$env:TARGET"
+
+      - name: Generate non-updating bundle config
+        shell: bash
+        run: |
+          cat > desktop/src-tauri/tauri.canary.conf.json <<'JSON'
+          {
+            "bundle": {
+              "createUpdaterArtifacts": false
+            }
+          }
+          JSON
+
+      - name: Build Windows NSIS installer
+        run: cd desktop && pnpm tauri build --target "$env:TARGET" --bundles nsis --config src-tauri/tauri.canary.conf.json
+        env:
+          CMAKE_POLICY_VERSION_MINIMUM: "3.5"
+
+      - name: Locate NSIS installer
+        id: artifact
+        shell: bash
+        run: |
+          BUNDLE_DIR="desktop/src-tauri/target/${TARGET}/release/bundle"
+          EXE=$(find "$BUNDLE_DIR/nsis" -name '*.exe' -type f | head -1)
+          echo "exe=$EXE" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: buzz-windows-${{ github.sha }}
+          path: ${{ steps.artifact.outputs.exe }}
+          if-no-files-found: error
+          retention-days: 7
