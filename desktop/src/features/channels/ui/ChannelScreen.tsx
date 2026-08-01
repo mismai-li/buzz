@@ -821,41 +821,6 @@ export function ChannelScreen({
     ],
   );
 
-  const tabBar = React.useMemo(
-    () => (
-      <div className="border-b border-border px-4">
-        <div className="flex gap-0" role="tablist">
-          <button
-            aria-selected={activeTab === CHANNEL_TAB_CHAT}
-            className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
-              activeTab === CHANNEL_TAB_CHAT
-                ? "border-foreground text-foreground"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-            onClick={() => setActiveTab(CHANNEL_TAB_CHAT)}
-            role="tab"
-            type="button"
-          >
-            Chat
-          </button>
-          <button
-            aria-selected={activeTab === CHANNEL_TAB_FILES}
-            className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
-              activeTab === CHANNEL_TAB_FILES
-                ? "border-foreground text-foreground"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-            onClick={() => setActiveTab(CHANNEL_TAB_FILES)}
-            role="tab"
-            type="button"
-          >
-            Files
-          </button>
-        </div>
-      </div>
-    ),
-    [activeTab],
-  );
   return (
     <AgentSessionProvider onOpenAgentSession={handleOpenAgentSession}>
       <ProfilePanelProvider onOpenProfilePanel={handleOpenProfilePanel}>
@@ -910,6 +875,40 @@ export function ChannelScreen({
               />
             ) : (
               <>
+                {channelHeader}
+                {/* Spacer + tab bar that sits below the overlaid header chrome */}
+                <div className="shrink-0 pt-[--buzz-channel-content-top-padding] -mt-[--buzz-channel-content-top-padding]">
+                  <div className="border-b border-border bg-background px-4">
+                    <div className="flex gap-0" role="tablist">
+                      <button
+                        aria-selected={activeTab === CHANNEL_TAB_CHAT}
+                        className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                          activeTab === CHANNEL_TAB_CHAT
+                            ? "border-foreground text-foreground"
+                            : "border-transparent text-muted-foreground hover:text-foreground"
+                        }`}
+                        onClick={() => setActiveTab(CHANNEL_TAB_CHAT)}
+                        role="tab"
+                        type="button"
+                      >
+                        Chat
+                      </button>
+                      <button
+                        aria-selected={activeTab === CHANNEL_TAB_FILES}
+                        className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                          activeTab === CHANNEL_TAB_FILES
+                            ? "border-foreground text-foreground"
+                            : "border-transparent text-muted-foreground hover:text-foreground"
+                        }`}
+                        onClick={() => setActiveTab(CHANNEL_TAB_FILES)}
+                        role="tab"
+                        type="button"
+                      >
+                        Files
+                      </button>
+                    </div>
+                  </div>
+                </div>
                 {activeTab === CHANNEL_TAB_CHAT ? (
                   <React.Suspense
                     fallback={<ViewLoadingFallback includeHeader kind="channel" />}
@@ -929,7 +928,6 @@ export function ChannelScreen({
                       canResetThreadPanelWidth={canResetThreadPanelWidth}
                       fetchOlder={fetchOlder}
                       header={channelHeader}
-                      tabBar={tabBar}
                       hasOlderMessages={hasOlderMessages}
                       historyExhausted={historyExhausted}
                       onAddAgent={handleOpenAddBot}
@@ -1046,7 +1044,39 @@ export function ChannelScreen({
                 ) : (
                   <>
                     {channelHeader}
-                    {tabBar}
+                    {/* Spacer + tab bar that sits below the overlaid header chrome */}
+                    <div className="shrink-0 pt-[--buzz-channel-content-top-padding] -mt-[--buzz-channel-content-top-padding]">
+                      <div className="border-b border-border bg-background px-4">
+                        <div className="flex gap-0" role="tablist">
+                          <button
+                            aria-selected={activeTab === CHANNEL_TAB_CHAT}
+                            className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                              activeTab === CHANNEL_TAB_CHAT
+                                ? "border-foreground text-foreground"
+                                : "border-transparent text-muted-foreground hover:text-foreground"
+                            }`}
+                            onClick={() => setActiveTab(CHANNEL_TAB_CHAT)}
+                            role="tab"
+                            type="button"
+                          >
+                            Chat
+                          </button>
+                          <button
+                            aria-selected={activeTab === CHANNEL_TAB_FILES}
+                            className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                              activeTab === CHANNEL_TAB_FILES
+                                ? "border-foreground text-foreground"
+                                : "border-transparent text-muted-foreground hover:text-foreground"
+                            }`}
+                            onClick={() => setActiveTab(CHANNEL_TAB_FILES)}
+                            role="tab"
+                            type="button"
+                          >
+                            Files
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                     <ChannelFilesTab
                       files={channelFiles.files}
                       isLoading={channelFiles.isLoading}

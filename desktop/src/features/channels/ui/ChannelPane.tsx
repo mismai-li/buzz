@@ -83,7 +83,6 @@ export const ChannelPane = React.memo(function ChannelPane({
   historyExhausted,
   isFetchingOlder,
   header,
-  tabBar,
   followThreadById,
   isFollowingThread,
   isFollowingThreadById,
@@ -623,7 +622,6 @@ export const ChannelPane = React.memo(function ChannelPane({
           }
         >
           {header}
-          {tabBar}
           {channelFind.isOpen ? (
             <div className={cn("absolute inset-x-0 z-40", channelChrome.top)}>
               <ChannelFindBar

@@ -45,8 +45,6 @@ export type ChannelPaneProps = {
   } | null;
   fetchOlder?: () => Promise<void>;
   header?: React.ReactNode;
-  /** Rendered between the channel header and the main timeline. */
-  tabBar?: React.ReactNode;
   hasOlderMessages?: boolean;
   /** True when the loaded window provably starts at the channel's beginning. */
   historyExhausted?: boolean;
