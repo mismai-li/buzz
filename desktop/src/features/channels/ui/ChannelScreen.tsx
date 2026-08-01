@@ -820,6 +820,45 @@ export function ChannelScreen({
       isSinglePanelView,
     ],
   );
+
+  const channelHeaderWithTabBar = React.useMemo(
+    () => (
+      <>
+        {channelHeader}
+        <div className="border-b border-border px-4">
+          <div className="flex gap-0" role="tablist">
+            <button
+              aria-selected={activeTab === CHANNEL_TAB_CHAT}
+              className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                activeTab === CHANNEL_TAB_CHAT
+                  ? "border-foreground text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+              onClick={() => setActiveTab(CHANNEL_TAB_CHAT)}
+              role="tab"
+              type="button"
+            >
+              Chat
+            </button>
+            <button
+              aria-selected={activeTab === CHANNEL_TAB_FILES}
+              className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                activeTab === CHANNEL_TAB_FILES
+                  ? "border-foreground text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+              onClick={() => setActiveTab(CHANNEL_TAB_FILES)}
+              role="tab"
+              type="button"
+            >
+              Files
+            </button>
+          </div>
+        </div>
+      </>
+    ),
+    [activeTab, channelHeader],
+  );
   return (
     <AgentSessionProvider onOpenAgentSession={handleOpenAgentSession}>
       <ProfilePanelProvider onOpenProfilePanel={handleOpenProfilePanel}>
@@ -874,43 +913,9 @@ export function ChannelScreen({
               />
             ) : (
               <>
-                {channelHeader}
-                {/* Tab bar */}
-                <div className="shrink-0 border-b border-border px-4">
-                  <div className="flex gap-0" role="tablist">
-                    <button
-                      aria-selected={activeTab === CHANNEL_TAB_CHAT}
-                      className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
-                        activeTab === CHANNEL_TAB_CHAT
-                          ? "border-foreground text-foreground"
-                          : "border-transparent text-muted-foreground hover:text-foreground"
-                      }`}
-                      onClick={() => setActiveTab(CHANNEL_TAB_CHAT)}
-                      role="tab"
-                      type="button"
-                    >
-                      Chat
-                    </button>
-                    <button
-                      aria-selected={activeTab === CHANNEL_TAB_FILES}
-                      className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
-                        activeTab === CHANNEL_TAB_FILES
-                          ? "border-foreground text-foreground"
-                          : "border-transparent text-muted-foreground hover:text-foreground"
-                      }`}
-                      onClick={() => setActiveTab(CHANNEL_TAB_FILES)}
-                      role="tab"
-                      type="button"
-                    >
-                      Files
-                    </button>
-                  </div>
-                </div>
                 {activeTab === CHANNEL_TAB_CHAT ? (
                   <React.Suspense
-                    fallback={
-                      <ViewLoadingFallback includeHeader={false} kind="channel" />
-                    }
+                    fallback={<ViewLoadingFallback includeHeader kind="channel" />}
                   >
                     <ChannelPane
                       activeChannel={activeChannel}
@@ -926,6 +931,7 @@ export function ChannelScreen({
                       currentPubkey={currentPubkey}
                       canResetThreadPanelWidth={canResetThreadPanelWidth}
                       fetchOlder={fetchOlder}
+                      header={channelHeaderWithTabBar}
                       hasOlderMessages={hasOlderMessages}
                       historyExhausted={historyExhausted}
                       onAddAgent={handleOpenAddBot}
@@ -1040,11 +1046,14 @@ export function ChannelScreen({
                     />
                   </React.Suspense>
                 ) : (
-                  <ChannelFilesTab
-                    files={channelFiles.files}
-                    isLoading={channelFiles.isLoading}
-                    senderNames={fileSenderNames}
-                  />
+                  <>
+                    {channelHeaderWithTabBar}
+                    <ChannelFilesTab
+                      files={channelFiles.files}
+                      isLoading={channelFiles.isLoading}
+                      senderNames={fileSenderNames}
+                    />
+                  </>
                 )}
               </>
             )
