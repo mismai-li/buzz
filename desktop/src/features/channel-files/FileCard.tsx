@@ -124,11 +124,9 @@ export function FileRow({
       className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors ${
         selected ? "bg-primary/5" : "hover:bg-muted/50"
       } ${selecting ? "cursor-pointer" : ""}`}
-      draggable={!!onDragStart && !selecting}
+      draggable={!!onDragStart}
       onClick={handleClick}
-      onDragStart={(e) => {
-        if (!selecting) onDragStart?.(e, file.eventId);
-      }}
+      onDragStart={(e) => onDragStart?.(e, file.eventId)}
     >
       {selecting ? (
         <div className="flex shrink-0 items-center" onClick={handleCheckboxClick}>
@@ -220,8 +218,7 @@ export function FileRow({
         </div>
         <span className="w-16 text-right">{formatDate(file.createdAt)}</span>
 
-        {!selecting ? (
-          <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+        <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
             <button
               aria-label={`Copy link for ${filename}`}
               className="rounded p-1 hover:bg-muted"
@@ -257,7 +254,6 @@ export function FileRow({
               </button>
             ) : null}
           </div>
-        ) : null}
       </div>
     </div>
   );

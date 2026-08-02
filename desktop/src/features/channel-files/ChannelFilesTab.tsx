@@ -80,7 +80,6 @@ export function ChannelFilesTab({
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
 
   // Selection
-  const [selecting, setSelecting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const lastClickedRef = useRef<string | null>(null);
 
@@ -197,15 +196,6 @@ export function ChannelFilesTab({
 
   // ── Selection ────────────────────────────────────────────────────
 
-  function toggleSelectMode() {
-    if (selecting) {
-      setSelecting(false);
-      setSelectedIds(new Set());
-    } else {
-      setSelecting(true);
-    }
-  }
-
   function handleToggleSelect(eventId: string, e?: React.MouseEvent) {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -247,8 +237,7 @@ export function ChannelFilesTab({
       }
     }
     setSelectedIds(new Set());
-    setSelecting(false);
-    toastSuccess?.(
+    toastSuccess(
       `Moved ${selectedIds.size} file${selectedIds.size !== 1 ? "s" : ""} to ${folder.name}`,
     );
   }
@@ -270,7 +259,7 @@ export function ChannelFilesTab({
         onJumpToMessage={onJumpToMessage}
         onToggleSelect={(id) => handleToggleSelect(id)}
         selected={selectedIds.has(file.eventId)}
-        selecting={selecting}
+        selecting={true}
         senderAvatarUrl={senderAvatarUrls?.get(file.pubkey) ?? null}
         senderName={senderNames?.get(file.pubkey)}
       />
@@ -292,7 +281,7 @@ export function ChannelFilesTab({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {/* Bulk action bar */}
-      {selecting && selectedCount > 0 ? (
+      {selectedCount > 0 ? (
         <div className="flex shrink-0 items-center gap-2 border-b border-primary/20 bg-primary/5 px-4 py-2">
           <span className="text-xs font-medium">
             {selectedCount} selected
@@ -329,12 +318,12 @@ export function ChannelFilesTab({
           </div>
           <Button
             className="h-7 px-2 text-xs"
-            onClick={toggleSelectMode}
+            onClick={() => setSelectedIds(new Set())}
             size="sm"
             variant="ghost"
           >
             <X className="mr-1 h-3.5 w-3.5" />
-            Cancel
+            Clear
           </Button>
         </div>
       ) : null}
@@ -398,25 +387,6 @@ export function ChannelFilesTab({
             </select>
             <ArrowUpDown className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
           </div>
-
-          <Button
-            className="h-8 shrink-0 gap-1 px-2 text-xs"
-            onClick={toggleSelectMode}
-            size="sm"
-            variant={selecting ? "secondary" : "outline"}
-          >
-            {selecting ? (
-              <>
-                <X className="h-3.5 w-3.5" />
-                Cancel
-              </>
-            ) : (
-              <>
-                <CheckSquare className="h-3.5 w-3.5" />
-                Select
-              </>
-            )}
-          </Button>
 
           {onCreateFolder ? (
             <Button
@@ -534,7 +504,7 @@ export function ChannelFilesTab({
                             <div className="flex-1">
                               {renderFileRow(file)}
                             </div>
-                            {onRemoveFileFromFolder && !selecting ? (
+                            {onRemoveFileFromFolder ? (
                               <Button
                                 aria-label="Remove from folder"
                                 className="mr-2 h-7 w-7 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
