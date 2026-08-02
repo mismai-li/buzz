@@ -896,7 +896,8 @@ export function ChannelScreen({
               />
             ) : (
               <>
-                {/* Spacer + tab bar that sits below the overlaid header chrome */}
+                {channelHeader}
+                {/* Tab bar */}
                 <div
                   className="shrink-0"
                   style={{ marginTop: "var(--buzz-channel-content-top-padding, 5.75rem)" }}
@@ -950,7 +951,6 @@ export function ChannelScreen({
                       currentPubkey={currentPubkey}
                       canResetThreadPanelWidth={canResetThreadPanelWidth}
                       fetchOlder={fetchOlder}
-                      header={channelHeader}
                       hasOlderMessages={hasOlderMessages}
                       historyExhausted={historyExhausted}
                       onAddAgent={handleOpenAddBot}
@@ -1065,16 +1065,13 @@ export function ChannelScreen({
                     />
                   </React.Suspense>
                 ) : (
-                  <>
-                    {channelHeader}
-                    <ChannelFilesTab
-                      files={channelFiles.files}
-                      isLoading={channelFiles.isLoading}
-                      onJumpToMessage={handleJumpToMessage}
-                      senderAvatarUrls={fileSenderAvatarUrls}
-                      senderNames={fileSenderNames}
-                    />
-                  </>
+                  <ChannelFilesTab
+                    files={channelFiles.files}
+                    isLoading={channelFiles.isLoading}
+                    onJumpToMessage={handleJumpToMessage}
+                    senderAvatarUrls={fileSenderAvatarUrls}
+                    senderNames={fileSenderNames}
+                  />
                 )}
               </>
             )
