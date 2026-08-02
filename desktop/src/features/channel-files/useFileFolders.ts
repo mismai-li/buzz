@@ -113,13 +113,40 @@ export function useFileFolders(
   const addFileToFolder = useCallback(
     async (folder: FileFolder, eventId: string) => {
       if (!currentPubkey) return;
-      // Don't duplicate
       if (folder.fileEventIds.includes(eventId)) return;
       const newTags = [
         ...folder.event.tags.filter(
           (t) => t[0] !== "e" || t[1] !== eventId,
         ),
         ["e", eventId],
+      ];
+      const event = await signRelayEvent({
+        kind: FILE_FOLDER_KIND,
+        content: "",
+        tags: newTags,
+        createdAt: Math.floor(Date.now() / 1000),
+      });
+      relayClient.publishEvent(event);
+      await queryClient.invalidateQueries({
+        queryKey: folderQueryKey(channelId!),
+      });
+    },
+    [channelId, currentPubkey, queryClient],
+  );
+
+  /** Add multiple files to a folder in a single event — avoids race conditions. */
+  const addFilesToFolder = useCallback(
+    async (folder: FileFolder, eventIds: string[]) => {
+      if (!currentPubkey || eventIds.length === 0) return;
+      // Merge: keep existing e-tags that aren't being re-added, then add all new ones
+      const existingIds = new Set(folder.fileEventIds);
+      const newIds = eventIds.filter((id) => !existingIds.has(id));
+      if (newIds.length === 0) return;
+      const newTags = [
+        ...folder.event.tags.filter(
+          (t) => t[0] !== "e" || existingIds.has(t[1]),
+        ),
+        ...newIds.map((id) => ["e", id] as [string, string]),
       ];
       const event = await signRelayEvent({
         kind: FILE_FOLDER_KIND,
@@ -223,6 +250,7 @@ export function useFileFolders(
     isLoading: query.isPending,
     createFolder,
     addFileToFolder,
+    addFilesToFolder,
     removeFileFromFolder,
     deleteFolder,
     renameFolder,

@@ -8,7 +8,7 @@ import {
   ChevronDown,
   Trash2,
   X,
-  CheckSquare,
+  Undo2,
   FolderInput,
 } from "lucide-react";
 import { FileRow, FileRowSkeleton } from "./FileCard";
@@ -50,10 +50,8 @@ export type ChannelFilesTabProps = {
   onDeleteFolder?: (folder: FileFolder) => Promise<unknown>;
   onRenameFolder?: (folder: FileFolder, name: string) => Promise<unknown>;
   onAddFileToFolder?: (folder: FileFolder, eventId: string) => Promise<unknown>;
-  onRemoveFileFromFolder?: (
-    folder: FileFolder,
-    eventId: string,
-  ) => Promise<unknown>;
+  onAddFilesToFolder?: (folder: FileFolder, eventIds: string[]) => Promise<unknown>;
+  onRemoveFileFromFolder?: (folder: FileFolder, eventId: string) => Promise<unknown>;
 };
 
 export function ChannelFilesTab({
@@ -67,6 +65,7 @@ export function ChannelFilesTab({
   onCreateFolder,
   onDeleteFolder,
   onAddFileToFolder,
+  onAddFilesToFolder,
   onRemoveFileFromFolder,
 }: ChannelFilesTabProps) {
   const [category, setCategory] = useState<FileCategory>("all");
@@ -135,7 +134,6 @@ export function ChannelFilesTab({
     [filtered, fileFolderMap],
   );
 
-  /** All visible file event IDs (for shift-click range). */
   const allVisibleIds = useMemo(() => {
     const ids: string[] = [];
     for (const f of unfiledFiles) ids.push(f.eventId);
@@ -144,6 +142,22 @@ export function ChannelFilesTab({
     }
     return ids;
   }, [unfiledFiles, expandedFolders, filesByFolder]);
+
+  // Determine which selected files are inside a folder (for bulk remove)
+  const selectedInFolder = useMemo(() => {
+    if (!fileFolderMap || selectedIds.size === 0) return null;
+    let commonDTag: string | null = null;
+    for (const id of selectedIds) {
+      const dTag = fileFolderMap.get(id);
+      if (dTag) {
+        if (commonDTag === null) commonDTag = dTag;
+        else if (commonDTag !== dTag) return null; // mixed folders
+      } else {
+        return null; // some unfiled
+      }
+    }
+    return commonDTag;
+  }, [fileFolderMap, selectedIds]);
 
   function toggleFolder(dTag: string) {
     setExpandedFolders((prev) => {
@@ -202,7 +216,6 @@ export function ChannelFilesTab({
       const shift = e?.shiftKey ?? false;
 
       if (shift && lastClickedRef.current) {
-        // Range select: toggle all between last click and this one
         const lastIdx = allVisibleIds.indexOf(lastClickedRef.current);
         const thisIdx = allVisibleIds.indexOf(eventId);
         if (lastIdx !== -1 && thisIdx !== -1) {
@@ -227,28 +240,32 @@ export function ChannelFilesTab({
   }
 
   async function handleBulkMoveToFolder(dTag: string) {
-    if (!onAddFileToFolder) return;
+    if (!onAddFilesToFolder) return;
     const folder = folders.find((f) => f.dTag === dTag);
     if (!folder) return;
-    // Process all selected files sequentially to avoid race conditions
-    for (const eventId of selectedIds) {
-      if (fileFolderMap?.get(eventId) !== dTag) {
-        await onAddFileToFolder(folder, eventId);
-      }
-    }
+    const ids = Array.from(selectedIds);
+    await onAddFilesToFolder(folder, ids);
+    toast(`Moved ${ids.length} file${ids.length !== 1 ? "s" : ""} to ${folder.name}`);
     setSelectedIds(new Set());
-    toastSuccess(
-      `Moved ${selectedIds.size} file${selectedIds.size !== 1 ? "s" : ""} to ${folder.name}`,
-    );
   }
 
-  function toastSuccess(msg: string) {
-    import("sonner").then(({ toast }) => toast.success(msg)).catch(() => {});
+  async function handleBulkRemoveFromFolder() {
+    if (!onRemoveFileFromFolder || !selectedInFolder) return;
+    const folder = folders.find((f) => f.dTag === selectedInFolder);
+    if (!folder) return;
+    const count = selectedIds.size;
+    for (const eventId of selectedIds) {
+      await onRemoveFileFromFolder(folder, eventId);
+    }
+    toast(`Removed ${count} file${count !== 1 ? "s" : ""} from ${folder.name}`);
+    setSelectedIds(new Set());
+  }
+
+  function toast(msg: string) {
+    import("sonner").then(({ toast: t }) => t.success(msg)).catch(() => {});
   }
 
   const selectedCount = selectedIds.size;
-
-  // ── Render helpers ────────────────────────────────────────────────
 
   function renderFileRow(file: ChannelFile) {
     return (
@@ -280,54 +297,6 @@ export function ChannelFilesTab({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {/* Bulk action bar */}
-      {selectedCount > 0 ? (
-        <div className="flex shrink-0 items-center gap-2 border-b border-primary/20 bg-primary/5 px-4 py-2">
-          <span className="text-xs font-medium">
-            {selectedCount} selected
-          </span>
-          <Button
-            className="h-7 px-2 text-xs"
-            onClick={selectAll}
-            size="sm"
-            variant="ghost"
-          >
-            Select all
-          </Button>
-          <div className="flex-1" />
-          <div className="relative">
-            <select
-              aria-label="Move selected files to folder"
-              className="h-7 appearance-none rounded border border-border bg-background pl-2 pr-6 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
-              onChange={(e) => {
-                if (e.target.value) void handleBulkMoveToFolder(e.target.value);
-              }}
-              value=""
-            >
-              <option disabled value="">
-                <FolderInput className="mr-1 inline h-3 w-3" />
-                Move to folder…
-              </option>
-              {folders.map((f) => (
-                <option key={f.dTag} value={f.dTag}>
-                  {f.name}
-                </option>
-              ))}
-            </select>
-            <FolderInput className="pointer-events-none absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
-          </div>
-          <Button
-            className="h-7 px-2 text-xs"
-            onClick={() => setSelectedIds(new Set())}
-            size="sm"
-            variant="ghost"
-          >
-            <X className="mr-1 h-3.5 w-3.5" />
-            Clear
-          </Button>
-        </div>
-      ) : null}
-
       {/* Toolbar */}
       <div className="shrink-0 space-y-2 border-b border-border px-4 pb-3 pt-3">
         <div className="flex items-center gap-1 overflow-x-auto [scrollbar-width:none]">
@@ -435,6 +404,65 @@ export function ChannelFilesTab({
         ) : null}
       </div>
 
+      {/* Bulk action bar — below toolbar, above file list */}
+      {selectedCount > 0 ? (
+        <div className="flex shrink-0 items-center gap-2 border-b border-primary/20 bg-primary/5 px-4 py-2">
+          <span className="text-xs font-medium">
+            {selectedCount} selected
+          </span>
+          <Button
+            className="h-7 px-2 text-xs"
+            onClick={selectAll}
+            size="sm"
+            variant="ghost"
+          >
+            Select all
+          </Button>
+          <div className="flex-1" />
+          {selectedInFolder ? (
+            <Button
+              className="h-7 gap-1 px-2 text-xs"
+              onClick={() => void handleBulkRemoveFromFolder()}
+              size="sm"
+              variant="outline"
+            >
+              <Undo2 className="h-3.5 w-3.5" />
+              Remove from folder
+            </Button>
+          ) : (
+            <div className="relative">
+              <select
+                aria-label="Move selected files to folder"
+                className="h-7 appearance-none rounded border border-border bg-background pl-2 pr-6 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                onChange={(e) => {
+                  if (e.target.value) void handleBulkMoveToFolder(e.target.value);
+                }}
+                value=""
+              >
+                <option disabled value="">
+                  Move to folder…
+                </option>
+                {folders.map((f) => (
+                  <option key={f.dTag} value={f.dTag}>
+                    {f.name}
+                  </option>
+                ))}
+              </select>
+              <FolderInput className="pointer-events-none absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
+            </div>
+          )}
+          <Button
+            className="h-7 px-2 text-xs"
+            onClick={() => setSelectedIds(new Set())}
+            size="sm"
+            variant="ghost"
+          >
+            <X className="mr-1 h-3.5 w-3.5" />
+            Clear
+          </Button>
+        </div>
+      ) : null}
+
       {/* File list */}
       <div className="flex-1 overflow-y-auto">
         {filtered.length === 0 && folders.length === 0 ? (
@@ -496,7 +524,7 @@ export function ChannelFilesTab({
                     <div className="divide-y divide-border border-l-2 border-l-muted ml-6">
                       {folderFiles.length === 0 ? (
                         <p className="px-3 py-4 text-xs text-muted-foreground">
-                          Empty folder — drag files here or use Select to add them.
+                          Empty folder — drag files here or use checkboxes to add them.
                         </p>
                       ) : (
                         folderFiles.map((file) => (
@@ -514,7 +542,7 @@ export function ChannelFilesTab({
                                 size="icon-xs"
                                 variant="ghost"
                               >
-                                <X className="h-3.5 w-3.5" />
+                                <Undo2 className="h-3.5 w-3.5" />
                               </Button>
                             ) : null}
                           </div>

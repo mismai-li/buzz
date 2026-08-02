@@ -1074,6 +1074,7 @@ export function ChannelScreen({
                     foldersLoading={fileFoldersHook.isLoading}
                     isLoading={channelFiles.isLoading}
                     onAddFileToFolder={fileFoldersHook.addFileToFolder}
+                    onAddFilesToFolder={fileFoldersHook.addFilesToFolder}
                     onCreateFolder={fileFoldersHook.createFolder}
                     onDeleteFolder={fileFoldersHook.deleteFolder}
                     onJumpToMessage={handleJumpToMessage}
