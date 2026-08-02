@@ -32,16 +32,60 @@ export type ChannelFile = {
   createdAt: number;
   /** The parent message event ID. */
   eventId: string;
+  /** First line of the message body (caption/description). */
+  caption: string | undefined;
   /** All parsed imeta fields. */
   imeta: ParsedImetaEntry;
 };
 
+/** File type categories for filtering. */
+export type FileCategory = "all" | "image" | "video" | "document" | "other";
+
+export function categorizeFile(mimeType: string): FileCategory {
+  if (mimeType.startsWith("image/")) return "image";
+  if (mimeType.startsWith("video/")) return "video";
+  if (
+    mimeType.includes("pdf") ||
+    mimeType.includes("document") ||
+    mimeType.includes("spreadsheet") ||
+    mimeType.includes("presentation") ||
+    mimeType.startsWith("text/") ||
+    mimeType.includes("json") ||
+    mimeType.includes("xml")
+  )
+    return "document";
+  return "other";
+}
+
+export type FileSort = "newest" | "oldest" | "name" | "size";
+
+function sortFiles(files: ChannelFile[], sort: FileSort): ChannelFile[] {
+  const sorted = [...files];
+  switch (sort) {
+    case "oldest":
+      sorted.sort((a, b) => a.createdAt - b.createdAt);
+      break;
+    case "name":
+      sorted.sort((a, b) => {
+        const na = (a.filename ?? "").toLowerCase();
+        const nb = (b.filename ?? "").toLowerCase();
+        return na.localeCompare(nb);
+      });
+      break;
+    case "size":
+      sorted.sort((a, b) => (b.size ?? 0) - (a.size ?? 0));
+      break;
+    case "newest":
+    default:
+      sorted.sort((a, b) => b.createdAt - a.createdAt);
+      break;
+  }
+  return sorted;
+}
+
 /**
  * Extract all file-bearing events from a channel and parse their imeta tags
  * into a flat list of {@link ChannelFile} objects, ordered newest-first.
- *
- * Scans timeline messages for `imeta` tags; each media entry in an event
- * yields one ChannelFile entry.
  */
 export function useChannelFiles(
   activeChannel: Channel | null,
@@ -60,6 +104,11 @@ export function useChannelFiles(
       const entries = parseImetaTags(tags as string[][]);
       if (entries.size === 0) continue;
 
+      // Extract first non-empty line of content as caption
+      const caption =
+        event.content?.trim().split("\n")[0]?.replace(/!\[(?:image|video)\]\([^)]+\)/g, "").trim() ||
+        undefined;
+
       for (const [, entry] of entries) {
         result.push({
           key: `${event.id}-${entry.url}`,
@@ -75,6 +124,7 @@ export function useChannelFiles(
           pubkey: event.pubkey,
           createdAt: event.created_at,
           eventId: event.id,
+          caption: caption || undefined,
           imeta: entry,
         });
       }
@@ -83,5 +133,10 @@ export function useChannelFiles(
     return result;
   }, [messagesQuery.data]);
 
-  return { files, isLoading: messagesQuery.isPending };
+  return {
+    files,
+    isLoading: messagesQuery.isPending,
+    categorizeFile,
+    sortFiles,
+  };
 }

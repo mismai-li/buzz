@@ -1,5 +1,15 @@
-import { FileIcon, ImageIcon, VideoIcon, Download } from "lucide-react";
+import {
+  FileIcon,
+  ImageIcon,
+  VideoIcon,
+  Download,
+  Copy,
+  ArrowRight,
+  ShieldCheck,
+} from "lucide-react";
+import { toast } from "sonner";
 import type { ChannelFile } from "./useChannelFiles";
+import { UserAvatar } from "@/shared/ui/UserAvatar";
 
 /** Human-friendly file size. */
 function formatSize(bytes: number | undefined): string {
@@ -16,15 +26,11 @@ function formatDate(unixSeconds: number): string {
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
   if (diffDays === 0) return "Today";
   if (diffDays === 1) return "Yesterday";
   if (diffDays < 7) return `${diffDays}d ago`;
   if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  });
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 function fileTypeLabel(mimeType: string): string {
@@ -33,20 +39,21 @@ function fileTypeLabel(mimeType: string): string {
   if (mimeType.startsWith("audio/")) return "Audio";
   if (mimeType.includes("pdf")) return "PDF";
   if (mimeType.includes("zip") || mimeType.includes("tar")) return "Archive";
-  if (
-    mimeType.includes("text/") ||
-    mimeType.includes("json") ||
-    mimeType.includes("xml")
-  )
+  if (mimeType.includes("text/") || mimeType.includes("json") || mimeType.includes("xml"))
     return "Text";
   return "File";
 }
 
-function FileRowIcon({
-  file,
-}: {
-  file: ChannelFile;
-}) {
+async function copyToClipboard(text: string, label: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+    toast.success(`${label} copied`);
+  } catch {
+    toast.error("Failed to copy");
+  }
+}
+
+function FileRowThumbnail({ file }: { file: ChannelFile }) {
   if (file.mimeType.startsWith("image/")) {
     return (
       <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
@@ -76,22 +83,41 @@ function FileRowIcon({
 export type FileRowProps = {
   file: ChannelFile;
   senderName?: string;
+  senderAvatarUrl?: string | null;
+  onJumpToMessage?: (eventId: string) => void;
 };
 
-export function FileRow({ file, senderName }: FileRowProps) {
+export function FileRow({
+  file,
+  senderName,
+  senderAvatarUrl,
+  onJumpToMessage,
+}: FileRowProps) {
   const filename = file.filename ?? file.rawUrl.split("/").pop() ?? "file";
 
   return (
-    <a
-      className="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-muted/50"
-      download={filename}
-      href={file.url}
-      rel="noreferrer"
-      target="_blank"
-    >
-      <FileRowIcon file={file} />
+    <div className="group flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-muted/50">
+      <a
+        className="contents"
+        download={filename}
+        href={file.url}
+        rel="noreferrer"
+        target="_blank"
+      >
+        <FileRowThumbnail file={file} />
+      </a>
+
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium">{filename}</p>
+        <a
+          className="truncate text-sm font-medium hover:underline"
+          download={filename}
+          href={file.url}
+          rel="noreferrer"
+          target="_blank"
+          title={filename}
+        >
+          {filename}
+        </a>
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <span>{fileTypeLabel(file.mimeType)}</span>
           {file.dim ? (
@@ -106,16 +132,72 @@ export function FileRow({ file, senderName }: FileRowProps) {
               <span>{formatSize(file.size)}</span>
             </>
           ) : null}
+          {file.sha256 ? (
+            <span
+              className="inline-flex items-center gap-0.5 text-green-600 dark:text-green-400"
+              title="SHA-256 verified"
+            >
+              <ShieldCheck className="h-3 w-3" />
+            </span>
+          ) : null}
         </p>
-      </div>
-      <div className="flex shrink-0 items-center gap-3 text-xs text-muted-foreground">
-        {senderName ? (
-          <span className="max-w-[120px] truncate">{senderName}</span>
+        {file.caption ? (
+          <p className="mt-0.5 truncate text-xs text-muted-foreground/70">
+            {file.caption}
+          </p>
         ) : null}
-        <span className="w-16 text-right">{formatDate(file.createdAt)}</span>
-        <Download className="h-4 w-4 opacity-50" />
       </div>
-    </a>
+
+      <div className="flex shrink-0 items-center gap-3 text-xs text-muted-foreground">
+        <div className="flex items-center gap-1.5">
+          <UserAvatar
+            avatarUrl={senderAvatarUrl ?? null}
+            className="h-5 w-5"
+            pubkey={file.pubkey}
+            size={20}
+          />
+          {senderName ? (
+            <span className="hidden max-w-[100px] truncate sm:inline">
+              {senderName}
+            </span>
+          ) : null}
+        </div>
+        <span className="w-16 text-right">{formatDate(file.createdAt)}</span>
+
+        {/* Action buttons — visible on hover */}
+        <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+          <button
+            aria-label={`Copy link for ${filename}`}
+            className="rounded p-1 hover:bg-muted"
+            onClick={(e) => {
+              e.preventDefault();
+              void copyToClipboard(file.url, "Link");
+            }}
+            type="button"
+          >
+            <Copy className="h-3.5 w-3.5" />
+          </button>
+          <a
+            aria-label={`Download ${filename}`}
+            className="rounded p-1 hover:bg-muted"
+            download={filename}
+            href={file.url}
+          >
+            <Download className="h-3.5 w-3.5" />
+          </a>
+          {onJumpToMessage ? (
+            <button
+              aria-label="Jump to message"
+              className="rounded p-1 hover:bg-muted"
+              onClick={() => onJumpToMessage(file.eventId)}
+              type="button"
+            >
+              <ArrowRight className="h-3.5 w-3.5" />
+            </button>
+          ) : null}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -127,6 +209,7 @@ export function FileRowSkeleton() {
         <div className="h-4 w-48 rounded bg-muted" />
         <div className="h-3 w-24 rounded bg-muted" />
       </div>
+      <div className="h-5 w-5 rounded-full bg-muted" />
       <div className="h-3 w-16 rounded bg-muted" />
     </div>
   );

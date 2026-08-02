@@ -100,7 +100,7 @@ export function ChannelScreen({
   targetMessageEvents,
   targetMessageId,
 }: ChannelScreenProps) {
-  const { goHome } = useAppNavigation();
+  const { goHome, goChannel } = useAppNavigation();
   const { activeCommunity } = useCommunities();
   const {
     markChannelRead,
@@ -380,6 +380,27 @@ export function ChannelScreen({
     }
     return map;
   }, [channelFiles.files, messageProfiles]);
+
+  // Build a pubkey -> avatar URL map for the Files tab
+  const fileSenderAvatarUrls = React.useMemo(() => {
+    const map = new Map<string, string | null>();
+    for (const file of channelFiles.files) {
+      if (map.has(file.pubkey)) continue;
+      const profile = messageProfiles[file.pubkey];
+      map.set(file.pubkey, profile?.avatarUrl ?? null);
+    }
+    return map;
+  }, [channelFiles.files, messageProfiles]);
+
+  const handleJumpToMessage = React.useCallback(
+    (eventId: string) => {
+      if (activeChannelId) {
+        void goChannel(activeChannelId, { messageId: eventId });
+        setActiveTab(CHANNEL_TAB_CHAT);
+      }
+    },
+    [activeChannelId, goChannel],
+  );
   // Agent set for ChannelPane's own consumers (DM huddle member resolution,
   // the agents list): the community-scoped baseline shared by every surface,
   // widened with channel-member roles and this screen's profile lookup.
@@ -1048,6 +1069,8 @@ export function ChannelScreen({
                   <ChannelFilesTab
                     files={channelFiles.files}
                     isLoading={channelFiles.isLoading}
+                    onJumpToMessage={handleJumpToMessage}
+                    senderAvatarUrls={fileSenderAvatarUrls}
                     senderNames={fileSenderNames}
                   />
                 )}
