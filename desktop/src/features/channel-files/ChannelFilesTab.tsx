@@ -173,7 +173,7 @@ export function ChannelFilesTab({
     return children;
   }, [folders]);
 
-  // Flat list with depth for rendering
+  // Flat list with depth for rendering — only includes children of expanded folders
   const flatFolders = useMemo(() => {
     const result: { folder: FileFolder; depth: number }[] = [];
     const root = folderTree.get("root") ?? [];
@@ -183,12 +183,15 @@ export function ChannelFilesTab({
         : root;
       for (const f of children) {
         result.push({ folder: f, depth });
-        walk(f.dTag, depth + 1);
+        // Only recurse into children if this folder is expanded
+        if (expandedFolders.has(f.dTag)) {
+          walk(f.dTag, depth + 1);
+        }
       }
     }
     walk(undefined, 0);
     return result;
-  }, [folderTree]);
+  }, [folderTree, expandedFolders]);
 
   function toggleFolder(dTag: string) {
     setExpandedFolders((prev) => {
@@ -567,7 +570,7 @@ export function ChannelFilesTab({
                   </div>
                   {isExpanded ? (
                     <div className="divide-y divide-border border-l-2 border-l-muted ml-6">
-                      {folderFiles.length === 0 ? (
+                      {folderFiles.length === 0 && !folderTree.has(folder.dTag) ? (
                         <p className="px-3 py-4 text-xs text-muted-foreground">
                           Empty folder — drag files here or use checkboxes to add them.
                         </p>
