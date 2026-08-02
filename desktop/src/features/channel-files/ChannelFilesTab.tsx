@@ -1,4 +1,4 @@
-import { FileCard, FileCardSkeleton } from "./FileCard";
+import { FileRow, FileRowSkeleton } from "./FileCard";
 import type { ChannelFile } from "./useChannelFiles";
 
 export type ChannelFilesTabProps = {
@@ -16,9 +16,9 @@ export function ChannelFilesTab({
   if (isLoading) {
     return (
       <div className="flex-1 overflow-y-auto p-4">
-        <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
-          {Array.from({ length: 12 }).map((_, i) => (
-            <FileCardSkeleton key={i} />
+        <div className="divide-y divide-border">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <FileRowSkeleton key={i} />
           ))}
         </div>
       </div>
@@ -57,10 +57,10 @@ export function ChannelFilesTab({
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-4">
-      <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
+    <div className="flex-1 overflow-y-auto">
+      <div className="divide-y divide-border">
         {files.map((file) => (
-          <FileCard
+          <FileRow
             file={file}
             key={file.key}
             senderName={senderNames?.get(file.pubkey)}

@@ -1,13 +1,7 @@
-import {
-  FileIcon,
-  ImageIcon,
-  VideoIcon,
-  Download,
-  ExternalLink,
-} from "lucide-react";
+import { FileIcon, ImageIcon, VideoIcon, Download } from "lucide-react";
 import type { ChannelFile } from "./useChannelFiles";
 
-/** Human-friendly file size formatting. */
+/** Human-friendly file size. */
 function formatSize(bytes: number | undefined): string {
   if (bytes == null || bytes === 0) return "";
   if (bytes < 1024) return `${bytes} B`;
@@ -17,7 +11,6 @@ function formatSize(bytes: number | undefined): string {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }
 
-/** Short relative timestamp (e.g. "Aug 1", "2d ago"). */
 function formatDate(unixSeconds: number): string {
   const date = new Date(unixSeconds * 1000);
   const now = new Date();
@@ -49,101 +42,92 @@ function fileTypeLabel(mimeType: string): string {
   return "File";
 }
 
-function fileIcon(mimeType: string) {
-  if (mimeType.startsWith("image/"))
-    return <ImageIcon className="h-5 w-5" />;
-  if (mimeType.startsWith("video/"))
-    return <VideoIcon className="h-5 w-5" />;
-  return <FileIcon className="h-5 w-5" />;
+function FileRowIcon({
+  file,
+}: {
+  file: ChannelFile;
+}) {
+  if (file.mimeType.startsWith("image/")) {
+    return (
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
+        <img
+          alt=""
+          className="h-full w-full object-cover"
+          loading="lazy"
+          src={file.url}
+        />
+      </div>
+    );
+  }
+  if (file.mimeType.startsWith("video/")) {
+    return (
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-muted">
+        <VideoIcon className="h-5 w-5 text-muted-foreground" />
+      </div>
+    );
+  }
+  return (
+    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-muted">
+      <FileIcon className="h-5 w-5 text-muted-foreground" />
+    </div>
+  );
 }
 
-export type FileCardProps = {
+export type FileRowProps = {
   file: ChannelFile;
   senderName?: string;
 };
 
-export function FileCard({ file, senderName }: FileCardProps) {
-  const isImage = file.mimeType.startsWith("image/");
-  const isVideo = file.mimeType.startsWith("video/");
+export function FileRow({ file, senderName }: FileRowProps) {
   const filename = file.filename ?? file.rawUrl.split("/").pop() ?? "file";
 
   return (
     <a
-      className="group relative flex flex-col overflow-hidden rounded-lg border border-border bg-card transition-shadow hover:shadow-md"
+      className="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-muted/50"
       download={filename}
       href={file.url}
       rel="noreferrer"
       target="_blank"
     >
-      {/* Thumbnail area */}
-      {isImage ? (
-        <div className="aspect-square w-full overflow-hidden bg-muted">
-          <img
-            alt={filename}
-            className="h-full w-full object-cover transition-transform group-hover:scale-105"
-            loading="lazy"
-            src={file.url}
-          />
-        </div>
-      ) : isVideo ? (
-        <div className="flex aspect-square w-full items-center justify-center bg-muted">
-          {file.thumb ? (
-            <img
-              alt={filename}
-              className="h-full w-full object-cover opacity-60"
-              loading="lazy"
-              src={file.thumb}
-            />
-          ) : null}
-          <VideoIcon className="absolute h-10 w-10 text-white opacity-80" />
-        </div>
-      ) : (
-        <div className="flex aspect-square w-full items-center justify-center bg-muted">
-          {fileIcon(file.mimeType)}
-        </div>
-      )}
-
-      {/* Info overlay */}
-      <div className="flex flex-col gap-0.5 p-3">
-        <div className="flex items-start justify-between gap-1">
-          <span
-            className="line-clamp-2 text-sm font-medium leading-tight break-all"
-            title={filename}
-          >
-            {filename}
-          </span>
-          <Download className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
-        </div>
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+      <FileRowIcon file={file} />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium">{filename}</p>
+        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <span>{fileTypeLabel(file.mimeType)}</span>
-          <span aria-hidden="true">·</span>
+          {file.dim ? (
+            <>
+              <span aria-hidden="true">·</span>
+              <span>{file.dim}</span>
+            </>
+          ) : null}
           {file.size != null ? (
             <>
+              <span aria-hidden="true">·</span>
               <span>{formatSize(file.size)}</span>
-              <span aria-hidden="true">·</span>
             </>
           ) : null}
-          <span>{formatDate(file.createdAt)}</span>
-          {senderName ? (
-            <>
-              <span aria-hidden="true">·</span>
-              <span className="truncate">{senderName}</span>
-            </>
-          ) : null}
-        </div>
+        </p>
+      </div>
+      <div className="flex shrink-0 items-center gap-3 text-xs text-muted-foreground">
+        {senderName ? (
+          <span className="max-w-[120px] truncate">{senderName}</span>
+        ) : null}
+        <span className="w-16 text-right">{formatDate(file.createdAt)}</span>
+        <Download className="h-4 w-4 opacity-50" />
       </div>
     </a>
   );
 }
 
-export function FileCardSkeleton() {
+export function FileRowSkeleton() {
   return (
-    <div className="flex animate-pulse flex-col overflow-hidden rounded-lg border border-border bg-card">
-      <div className="aspect-square w-full bg-muted" />
-      <div className="flex flex-col gap-2 p-3">
-        <div className="h-4 w-3/4 rounded bg-muted" />
-        <div className="h-3 w-1/2 rounded bg-muted" />
+    <div className="flex animate-pulse items-center gap-3 rounded-lg px-3 py-2.5">
+      <div className="h-10 w-10 shrink-0 rounded-md bg-muted" />
+      <div className="flex-1 space-y-1.5">
+        <div className="h-4 w-48 rounded bg-muted" />
+        <div className="h-3 w-24 rounded bg-muted" />
       </div>
+      <div className="h-3 w-16 rounded bg-muted" />
     </div>
   );
 }
