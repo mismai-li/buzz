@@ -59,7 +59,7 @@ export function categorizeFile(mimeType: string): FileCategory {
 
 export type FileSort = "newest" | "oldest" | "name" | "size";
 
-function sortFiles(files: ChannelFile[], sort: FileSort): ChannelFile[] {
+export function sortFiles(files: ChannelFile[], sort: FileSort): ChannelFile[] {
   const sorted = [...files];
   switch (sort) {
     case "oldest":
