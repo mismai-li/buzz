@@ -1,6 +1,16 @@
 import { useMemo, useState } from "react";
-import { Search, ArrowUpDown } from "lucide-react";
+import {
+  Search,
+  ArrowUpDown,
+  FolderPlus,
+  Folder,
+  ChevronRight,
+  ChevronDown,
+  Trash2,
+  Pencil,
+} from "lucide-react";
 import { FileRow, FileRowSkeleton } from "./FileCard";
+import { type FileFolder } from "./useFileFolders";
 import {
   categorizeFile,
   sortFiles,
@@ -31,6 +41,18 @@ export type ChannelFilesTabProps = {
   senderNames?: Map<string, string>;
   senderAvatarUrls?: Map<string, string | null>;
   onJumpToMessage?: (eventId: string) => void;
+  /** Folder support */
+  folders?: FileFolder[];
+  foldersLoading?: boolean;
+  fileFolderMap?: Map<string, string>;
+  onCreateFolder?: (name: string) => Promise<unknown>;
+  onDeleteFolder?: (folder: FileFolder) => Promise<unknown>;
+  onRenameFolder?: (folder: FileFolder, name: string) => Promise<unknown>;
+  onAddFileToFolder?: (folder: FileFolder, eventId: string) => Promise<unknown>;
+  onRemoveFileFromFolder?: (
+    folder: FileFolder,
+    eventId: string,
+  ) => Promise<unknown>;
 };
 
 export function ChannelFilesTab({
@@ -39,18 +61,33 @@ export function ChannelFilesTab({
   senderNames,
   senderAvatarUrls,
   onJumpToMessage,
+  folders = [],
+  foldersLoading = false,
+  fileFolderMap,
+  onCreateFolder,
+  onDeleteFolder,
+  onRenameFolder,
+  onAddFileToFolder,
+  onRemoveFileFromFolder,
 }: ChannelFilesTabProps) {
   const [category, setCategory] = useState<FileCategory>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [sort, setSort] = useState<FileSort>("newest");
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [isCreatingFolder, setIsCreatingFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [folderMenuOpen, setFolderMenuOpen] = useState<string | null>(null);
+  const [addToFolderFileId, setAddToFolderFileId] = useState<string | null>(
+    null,
+  );
 
   const filtered = useMemo(() => {
     let result = files;
-
     if (category !== "all") {
       result = result.filter((f) => categorizeFile(f.mimeType) === category);
     }
-
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
       result = result.filter(
@@ -59,11 +96,9 @@ export function ChannelFilesTab({
           (f.caption ?? "").toLowerCase().includes(q),
       );
     }
-
     return sortFiles(result, sort);
   }, [files, category, searchQuery, sort]);
 
-  // Count per category for badge numbers
   const counts = useMemo(() => {
     const c: Record<FileCategory, number> = {
       all: files.length,
@@ -77,6 +112,56 @@ export function ChannelFilesTab({
     }
     return c;
   }, [files]);
+
+  /** Files organized by folder (for expanded folder views). */
+  const filesByFolder = useMemo(() => {
+    const map = new Map<string, ChannelFile[]>();
+    if (!fileFolderMap) return map;
+    for (const file of filtered) {
+      const dTag = fileFolderMap.get(file.eventId);
+      if (dTag) {
+        const list = map.get(dTag) ?? [];
+        list.push(file);
+        map.set(dTag, list);
+      }
+    }
+    return map;
+  }, [filtered, fileFolderMap]);
+
+  /** Files NOT in any folder. */
+  const unfiledFiles = useMemo(
+    () =>
+      fileFolderMap
+        ? filtered.filter((f) => !fileFolderMap.has(f.eventId))
+        : filtered,
+    [filtered, fileFolderMap],
+  );
+
+  // Files inside currently-expanded folders
+  const expandedFolderFiles = useMemo(() => {
+    const result: ChannelFile[] = [];
+    for (const dTag of expandedFolders) {
+      const list = filesByFolder.get(dTag);
+      if (list) result.push(...list);
+    }
+    return result;
+  }, [expandedFolders, filesByFolder]);
+
+  function toggleFolder(dTag: string) {
+    setExpandedFolders((prev) => {
+      const next = new Set(prev);
+      if (next.has(dTag)) next.delete(dTag);
+      else next.add(dTag);
+      return next;
+    });
+  }
+
+  async function handleCreateFolder() {
+    if (!newFolderName.trim() || !onCreateFolder) return;
+    await onCreateFolder(newFolderName.trim());
+    setNewFolderName("");
+    setIsCreatingFolder(false);
+  }
 
   if (isLoading) {
     return (
@@ -92,9 +177,8 @@ export function ChannelFilesTab({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {/* Filter tabs + search + sort toolbar */}
+      {/* Toolbar */}
       <div className="shrink-0 space-y-2 border-b border-border px-4 pb-3 pt-3">
-        {/* Category tabs */}
         <div className="flex items-center gap-1 overflow-x-auto [scrollbar-width:none]">
           {CATEGORY_TABS.map((tab) => (
             <Button
@@ -115,7 +199,6 @@ export function ChannelFilesTab({
           ))}
         </div>
 
-        {/* Search + sort row */}
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -153,27 +236,151 @@ export function ChannelFilesTab({
             </select>
             <ArrowUpDown className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
           </div>
+
+          {onCreateFolder ? (
+            <Button
+              className="h-8 shrink-0 gap-1 px-2 text-xs"
+              onClick={() => setIsCreatingFolder(true)}
+              size="sm"
+              variant="outline"
+            >
+              <FolderPlus className="h-3.5 w-3.5" />
+              New Folder
+            </Button>
+          ) : null}
         </div>
+
+        {/* New folder input */}
+        {isCreatingFolder ? (
+          <div className="flex items-center gap-2">
+            <input
+              autoFocus
+              className="h-8 flex-1 rounded-md border border-border bg-background px-3 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+              onChange={(e) => setNewFolderName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void handleCreateFolder();
+                if (e.key === "Escape") setIsCreatingFolder(false);
+              }}
+              placeholder="Folder name..."
+              type="text"
+              value={newFolderName}
+            />
+            <Button
+              className="h-8 px-3 text-xs"
+              disabled={!newFolderName.trim()}
+              onClick={() => void handleCreateFolder()}
+              size="sm"
+            >
+              Create
+            </Button>
+            <Button
+              className="h-8 px-2 text-xs"
+              onClick={() => setIsCreatingFolder(false)}
+              size="sm"
+              variant="ghost"
+            >
+              Cancel
+            </Button>
+          </div>
+        ) : null}
       </div>
 
       {/* File list */}
       <div className="flex-1 overflow-y-auto">
-        {filtered.length === 0 ? (
+        {filtered.length === 0 && folders.length === 0 ? (
           <div className="flex items-center justify-center p-12">
             <div className="flex max-w-xs flex-col items-center gap-2 text-center">
-              <p className="text-sm font-medium">
-                {files.length === 0 ? "No files yet" : "No matching files"}
-              </p>
+              <p className="text-sm font-medium">No files yet</p>
               <p className="text-xs text-muted-foreground">
-                {files.length === 0
-                  ? "Files shared in this channel will appear here."
-                  : "Try a different filter or search term."}
+                Files shared in this channel will appear here.
               </p>
             </div>
           </div>
         ) : (
           <div className="divide-y divide-border py-1">
-            {filtered.map((file) => (
+            {/* Folders */}
+            {folders.map((folder) => {
+              const folderFiles =
+                filesByFolder.get(folder.dTag) ?? [];
+              const isExpanded = expandedFolders.has(folder.dTag);
+
+              return (
+                <div key={folder.dTag}>
+                  <div className="flex items-center gap-2 px-3 py-2 hover:bg-muted/50">
+                    <button
+                      className="flex flex-1 items-center gap-2 text-sm font-medium"
+                      onClick={() => toggleFolder(folder.dTag)}
+                      type="button"
+                    >
+                      {isExpanded ? (
+                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      )}
+                      <Folder className="h-4 w-4 text-muted-foreground" />
+                      {folder.name}
+                      <span className="text-xs text-muted-foreground">
+                        ({folderFiles.length})
+                      </span>
+                    </button>
+                    {onDeleteFolder ? (
+                      <Button
+                        aria-label={`Delete folder ${folder.name}`}
+                        className="h-7 w-7 opacity-50 hover:opacity-100"
+                        onClick={() => void onDeleteFolder(folder)}
+                        size="icon-xs"
+                        variant="ghost"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    ) : null}
+                  </div>
+                  {isExpanded ? (
+                    <div className="divide-y divide-border border-l-2 border-l-muted ml-6">
+                      {folderFiles.length === 0 ? (
+                        <p className="px-3 py-4 text-xs text-muted-foreground">
+                          Empty folder — add files with the context menu.
+                        </p>
+                      ) : (
+                        folderFiles.map((file) => (
+                          <div className="flex items-center" key={file.key}>
+                            <div className="flex-1">
+                              <FileRow
+                                file={file}
+                                onJumpToMessage={onJumpToMessage}
+                                senderAvatarUrl={
+                                  senderAvatarUrls?.get(file.pubkey) ?? null
+                                }
+                                senderName={senderNames?.get(file.pubkey)}
+                              />
+                            </div>
+                            {onRemoveFileFromFolder ? (
+                              <Button
+                                aria-label="Remove from folder"
+                                className="mr-2 h-7 w-7 shrink-0 opacity-0 group-hover:opacity-100"
+                                onClick={() =>
+                                  void onRemoveFileFromFolder(
+                                    folder,
+                                    file.eventId,
+                                  )
+                                }
+                                size="icon-xs"
+                                variant="ghost"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            ) : null}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+
+            {/* Unfiled files */}
+            {unfiledFiles.map((file) => (
               <FileRow
                 file={file}
                 key={file.key}
@@ -182,6 +389,9 @@ export function ChannelFilesTab({
                 senderName={senderNames?.get(file.pubkey)}
               />
             ))}
+
+            {/* Files from expanded folders (shown inline) */}
+            {/* already rendered above */}
           </div>
         )}
       </div>

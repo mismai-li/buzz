@@ -82,8 +82,9 @@ import { useChannelProfilePanel } from "./useChannelProfilePanel";
 import { useChannelRouteTarget } from "./useChannelRouteTarget";
 import { useChannelUnreadState } from "./useChannelUnreadState";
 import type { ChannelScreenProps } from "./ChannelScreen.types";
-import { ChannelFilesTab } from "@/features/channel-files/ChannelFilesTab";
-import { useChannelFiles } from "@/features/channel-files/useChannelFiles";
+import { ChannelFilesTab } from "@features/channel-files/ChannelFilesTab";
+import { useChannelFiles } from "@features/channel-files/useChannelFiles";
+import { useFileFolders } from "@features/channel-files/useFileFolders";
 const HEADER_ACTIONS_COMPACT_BREAKPOINT_PX = 760,
   CHANNEL_TAB_CHAT = "chat",
   CHANNEL_TAB_FILES = "files",
@@ -198,6 +199,7 @@ export function ChannelScreen({
   );
   useChannelSubscription(activeChannel);
   const channelFiles = useChannelFiles(activeChannel);
+  const fileFoldersHook = useFileFolders(activeChannelId, currentPubkey);
   // Reset to chat tab when switching channels
   React.useEffect(() => {
     setActiveTab(CHANNEL_TAB_CHAT);
@@ -1067,8 +1069,16 @@ export function ChannelScreen({
                 ) : (
                   <ChannelFilesTab
                     files={channelFiles.files}
+                    fileFolderMap={fileFoldersHook.fileFolderMap}
+                    folders={fileFoldersHook.folders}
+                    foldersLoading={fileFoldersHook.isLoading}
                     isLoading={channelFiles.isLoading}
+                    onAddFileToFolder={fileFoldersHook.addFileToFolder}
+                    onCreateFolder={fileFoldersHook.createFolder}
+                    onDeleteFolder={fileFoldersHook.deleteFolder}
                     onJumpToMessage={handleJumpToMessage}
+                    onRemoveFileFromFolder={fileFoldersHook.removeFileFromFolder}
+                    onRenameFolder={fileFoldersHook.renameFolder}
                     senderAvatarUrls={fileSenderAvatarUrls}
                     senderNames={fileSenderNames}
                   />
