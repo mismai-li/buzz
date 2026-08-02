@@ -7,7 +7,7 @@ import {
   ChevronRight,
   ChevronDown,
   Trash2,
-  Pencil,
+  Plus,
 } from "lucide-react";
 import { FileRow, FileRowSkeleton } from "./FileCard";
 import { type FileFolder } from "./useFileFolders";
@@ -78,8 +78,7 @@ export function ChannelFilesTab({
   );
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
-  const [folderMenuOpen, setFolderMenuOpen] = useState<string | null>(null);
-  const [addToFolderFileId, setAddToFolderFileId] = useState<string | null>(
+  const [addToFolderTarget, setAddToFolderTarget] = useState<string | null>(
     null,
   );
 
@@ -113,7 +112,6 @@ export function ChannelFilesTab({
     return c;
   }, [files]);
 
-  /** Files organized by folder (for expanded folder views). */
   const filesByFolder = useMemo(() => {
     const map = new Map<string, ChannelFile[]>();
     if (!fileFolderMap) return map;
@@ -128,7 +126,6 @@ export function ChannelFilesTab({
     return map;
   }, [filtered, fileFolderMap]);
 
-  /** Files NOT in any folder. */
   const unfiledFiles = useMemo(
     () =>
       fileFolderMap
@@ -136,16 +133,6 @@ export function ChannelFilesTab({
         : filtered,
     [filtered, fileFolderMap],
   );
-
-  // Files inside currently-expanded folders
-  const expandedFolderFiles = useMemo(() => {
-    const result: ChannelFile[] = [];
-    for (const dTag of expandedFolders) {
-      const list = filesByFolder.get(dTag);
-      if (list) result.push(...list);
-    }
-    return result;
-  }, [expandedFolders, filesByFolder]);
 
   function toggleFolder(dTag: string) {
     setExpandedFolders((prev) => {
@@ -161,6 +148,13 @@ export function ChannelFilesTab({
     await onCreateFolder(newFolderName.trim());
     setNewFolderName("");
     setIsCreatingFolder(false);
+  }
+
+  async function handleAddToFolder(eventId: string, dTag: string) {
+    const folder = folders.find((f) => f.dTag === dTag);
+    if (!folder || !onAddFileToFolder) return;
+    await onAddFileToFolder(folder, eventId);
+    setAddToFolderTarget(null);
   }
 
   if (isLoading) {
@@ -300,9 +294,9 @@ export function ChannelFilesTab({
           <div className="divide-y divide-border py-1">
             {/* Folders */}
             {folders.map((folder) => {
-              const folderFiles =
-                filesByFolder.get(folder.dTag) ?? [];
+              const folderFiles = filesByFolder.get(folder.dTag) ?? [];
               const isExpanded = expandedFolders.has(folder.dTag);
+              const isTarget = addToFolderTarget !== null;
 
               return (
                 <div key={folder.dTag}>
@@ -323,6 +317,19 @@ export function ChannelFilesTab({
                         ({folderFiles.length})
                       </span>
                     </button>
+                    {isTarget ? (
+                      <Button
+                        className="h-7 gap-1 px-2 text-xs"
+                        onClick={() =>
+                          void handleAddToFolder(addToFolderTarget, folder.dTag)
+                        }
+                        size="sm"
+                        variant="secondary"
+                      >
+                        <Plus className="h-3 w-3" />
+                        Add here
+                      </Button>
+                    ) : null}
                     {onDeleteFolder ? (
                       <Button
                         aria-label={`Delete folder ${folder.name}`}
@@ -337,9 +344,10 @@ export function ChannelFilesTab({
                   </div>
                   {isExpanded ? (
                     <div className="divide-y divide-border border-l-2 border-l-muted ml-6">
-                      {folderFiles.length === 0 ? (
+                      {folderFiles.length === 0 && !isTarget ? (
                         <p className="px-3 py-4 text-xs text-muted-foreground">
-                          Empty folder — add files with the context menu.
+                          Empty folder — use the + button on a file to add it
+                          here.
                         </p>
                       ) : (
                         folderFiles.map((file) => (
@@ -379,19 +387,47 @@ export function ChannelFilesTab({
               );
             })}
 
+            {/* Add-to-folder mode banner */}
+            {addToFolderTarget && folders.length > 0 ? (
+              <div className="flex items-center gap-2 bg-muted/30 px-3 py-2 text-xs">
+                <span className="text-muted-foreground">
+                  Select a folder to add the file to, or{" "}
+                </span>
+                <Button
+                  className="h-6 px-2 text-xs"
+                  onClick={() => setAddToFolderTarget(null)}
+                  size="sm"
+                  variant="ghost"
+                >
+                  cancel
+                </Button>
+              </div>
+            ) : null}
+
             {/* Unfiled files */}
             {unfiledFiles.map((file) => (
-              <FileRow
-                file={file}
-                key={file.key}
-                onJumpToMessage={onJumpToMessage}
-                senderAvatarUrl={senderAvatarUrls?.get(file.pubkey) ?? null}
-                senderName={senderNames?.get(file.pubkey)}
-              />
+              <div className="group relative" key={file.key}>
+                <FileRow
+                  file={file}
+                  onJumpToMessage={onJumpToMessage}
+                  senderAvatarUrl={
+                    senderAvatarUrls?.get(file.pubkey) ?? null
+                  }
+                  senderName={senderNames?.get(file.pubkey)}
+                />
+                {folders.length > 0 && onAddFileToFolder ? (
+                  <Button
+                    aria-label="Add to folder"
+                    className="absolute right-2 top-1/2 h-7 w-7 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100"
+                    onClick={() => setAddToFolderTarget(file.eventId)}
+                    size="icon-xs"
+                    variant="ghost"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </Button>
+                ) : null}
+              </div>
             ))}
-
-            {/* Files from expanded folders (shown inline) */}
-            {/* already rendered above */}
           </div>
         )}
       </div>
