@@ -11,7 +11,6 @@ import { toast } from "sonner";
 import type { ChannelFile } from "./useChannelFiles";
 import { UserAvatar } from "@/shared/ui/UserAvatar";
 
-/** Human-friendly file size. */
 function formatSize(bytes: number | undefined): string {
   if (bytes == null || bytes === 0) return "";
   if (bytes < 1024) return `${bytes} B`;
@@ -39,7 +38,11 @@ function fileTypeLabel(mimeType: string): string {
   if (mimeType.startsWith("audio/")) return "Audio";
   if (mimeType.includes("pdf")) return "PDF";
   if (mimeType.includes("zip") || mimeType.includes("tar")) return "Archive";
-  if (mimeType.includes("text/") || mimeType.includes("json") || mimeType.includes("xml"))
+  if (
+    mimeType.includes("text/") ||
+    mimeType.includes("json") ||
+    mimeType.includes("xml")
+  )
     return "Text";
   return "File";
 }
@@ -85,6 +88,8 @@ export type FileRowProps = {
   senderName?: string;
   senderAvatarUrl?: string | null;
   onJumpToMessage?: (eventId: string) => void;
+  /** Called when the user starts dragging this file. */
+  onDragStart?: (e: React.DragEvent, eventId: string) => void;
 };
 
 export function FileRow({
@@ -92,11 +97,16 @@ export function FileRow({
   senderName,
   senderAvatarUrl,
   onJumpToMessage,
+  onDragStart,
 }: FileRowProps) {
   const filename = file.filename ?? file.rawUrl.split("/").pop() ?? "file";
 
   return (
-    <div className="group flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-muted/50">
+    <div
+      className="group flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-muted/50"
+      draggable={!!onDragStart}
+      onDragStart={(e) => onDragStart?.(e, file.eventId)}
+    >
       <a
         className="contents"
         download={filename}
@@ -164,7 +174,6 @@ export function FileRow({
         </div>
         <span className="w-16 text-right">{formatDate(file.createdAt)}</span>
 
-        {/* Action buttons — visible on hover */}
         <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
           <button
             aria-label={`Copy link for ${filename}`}

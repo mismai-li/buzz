@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   Search,
   ArrowUpDown,
@@ -7,7 +7,6 @@ import {
   ChevronRight,
   ChevronDown,
   Trash2,
-  Plus,
 } from "lucide-react";
 import { FileRow, FileRowSkeleton } from "./FileCard";
 import { type FileFolder } from "./useFileFolders";
@@ -41,7 +40,6 @@ export type ChannelFilesTabProps = {
   senderNames?: Map<string, string>;
   senderAvatarUrls?: Map<string, string | null>;
   onJumpToMessage?: (eventId: string) => void;
-  /** Folder support */
   folders?: FileFolder[];
   foldersLoading?: boolean;
   fileFolderMap?: Map<string, string>;
@@ -62,11 +60,9 @@ export function ChannelFilesTab({
   senderAvatarUrls,
   onJumpToMessage,
   folders = [],
-  foldersLoading = false,
   fileFolderMap,
   onCreateFolder,
   onDeleteFolder,
-  onRenameFolder,
   onAddFileToFolder,
   onRemoveFileFromFolder,
 }: ChannelFilesTabProps) {
@@ -78,9 +74,7 @@ export function ChannelFilesTab({
   );
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
-  const [addToFolderTarget, setAddToFolderTarget] = useState<string | null>(
-    null,
-  );
+  const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     let result = files;
@@ -150,12 +144,39 @@ export function ChannelFilesTab({
     setIsCreatingFolder(false);
   }
 
-  async function handleAddToFolder(eventId: string, dTag: string) {
-    const folder = folders.find((f) => f.dTag === dTag);
-    if (!folder || !onAddFileToFolder) return;
-    await onAddFileToFolder(folder, eventId);
-    setAddToFolderTarget(null);
-  }
+  const handleDragStart = useCallback(
+    (e: React.DragEvent, eventId: string) => {
+      e.dataTransfer.setData("text/plain", eventId);
+      e.dataTransfer.effectAllowed = "move";
+    },
+    [],
+  );
+
+  const handleFolderDragOver = useCallback(
+    (e: React.DragEvent, dTag: string) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      setDragOverFolder(dTag);
+    },
+    [],
+  );
+
+  const handleFolderDragLeave = useCallback(() => {
+    setDragOverFolder(null);
+  }, []);
+
+  const handleFolderDrop = useCallback(
+    async (e: React.DragEvent, folder: FileFolder) => {
+      e.preventDefault();
+      setDragOverFolder(null);
+      const eventId = e.dataTransfer.getData("text/plain");
+      if (!eventId || !onAddFileToFolder) return;
+      // Don't add if already in this folder
+      if (fileFolderMap?.get(eventId) === folder.dTag) return;
+      await onAddFileToFolder(folder, eventId);
+    },
+    [fileFolderMap, onAddFileToFolder],
+  );
 
   if (isLoading) {
     return (
@@ -244,7 +265,6 @@ export function ChannelFilesTab({
           ) : null}
         </div>
 
-        {/* New folder input */}
         {isCreatingFolder ? (
           <div className="flex items-center gap-2">
             <input
@@ -292,15 +312,23 @@ export function ChannelFilesTab({
           </div>
         ) : (
           <div className="divide-y divide-border py-1">
-            {/* Folders */}
+            {/* Folders — droppable targets */}
             {folders.map((folder) => {
               const folderFiles = filesByFolder.get(folder.dTag) ?? [];
               const isExpanded = expandedFolders.has(folder.dTag);
-              const isTarget = addToFolderTarget !== null;
 
               return (
                 <div key={folder.dTag}>
-                  <div className="flex items-center gap-2 px-3 py-2 hover:bg-muted/50">
+                  <div
+                    className={`flex items-center gap-2 px-3 py-2 transition-colors ${
+                      dragOverFolder === folder.dTag
+                        ? "bg-primary/10 ring-2 ring-primary/30"
+                        : "hover:bg-muted/50"
+                    }`}
+                    onDragLeave={handleFolderDragLeave}
+                    onDragOver={(e) => handleFolderDragOver(e, folder.dTag)}
+                    onDrop={(e) => void handleFolderDrop(e, folder)}
+                  >
                     <button
                       className="flex flex-1 items-center gap-2 text-sm font-medium"
                       onClick={() => toggleFolder(folder.dTag)}
@@ -317,19 +345,6 @@ export function ChannelFilesTab({
                         ({folderFiles.length})
                       </span>
                     </button>
-                    {isTarget ? (
-                      <Button
-                        className="h-7 gap-1 px-2 text-xs"
-                        onClick={() =>
-                          void handleAddToFolder(addToFolderTarget, folder.dTag)
-                        }
-                        size="sm"
-                        variant="secondary"
-                      >
-                        <Plus className="h-3 w-3" />
-                        Add here
-                      </Button>
-                    ) : null}
                     {onDeleteFolder ? (
                       <Button
                         aria-label={`Delete folder ${folder.name}`}
@@ -344,10 +359,9 @@ export function ChannelFilesTab({
                   </div>
                   {isExpanded ? (
                     <div className="divide-y divide-border border-l-2 border-l-muted ml-6">
-                      {folderFiles.length === 0 && !isTarget ? (
+                      {folderFiles.length === 0 ? (
                         <p className="px-3 py-4 text-xs text-muted-foreground">
-                          Empty folder — use the + button on a file to add it
-                          here.
+                          Empty folder — drag files here to add them.
                         </p>
                       ) : (
                         folderFiles.map((file) => (
@@ -355,6 +369,7 @@ export function ChannelFilesTab({
                             <div className="flex-1">
                               <FileRow
                                 file={file}
+                                onDragStart={handleDragStart}
                                 onJumpToMessage={onJumpToMessage}
                                 senderAvatarUrl={
                                   senderAvatarUrls?.get(file.pubkey) ?? null
@@ -387,46 +402,25 @@ export function ChannelFilesTab({
               );
             })}
 
-            {/* Add-to-folder mode banner */}
-            {addToFolderTarget && folders.length > 0 ? (
-              <div className="flex items-center gap-2 bg-muted/30 px-3 py-2 text-xs">
-                <span className="text-muted-foreground">
-                  Select a folder to add the file to, or{" "}
-                </span>
-                <Button
-                  className="h-6 px-2 text-xs"
-                  onClick={() => setAddToFolderTarget(null)}
-                  size="sm"
-                  variant="ghost"
-                >
-                  cancel
-                </Button>
+            {/* Drag hint when hovering a folder */}
+            {dragOverFolder ? (
+              <div className="px-3 py-1.5 text-xs text-muted-foreground">
+                Drop file to add to folder
               </div>
             ) : null}
 
-            {/* Unfiled files */}
+            {/* Unfiled files — draggable */}
             {unfiledFiles.map((file) => (
-              <div className="group relative" key={file.key}>
-                <FileRow
-                  file={file}
-                  onJumpToMessage={onJumpToMessage}
-                  senderAvatarUrl={
-                    senderAvatarUrls?.get(file.pubkey) ?? null
-                  }
-                  senderName={senderNames?.get(file.pubkey)}
-                />
-                {folders.length > 0 && onAddFileToFolder ? (
-                  <Button
-                    aria-label="Add to folder"
-                    className="absolute right-2 top-1/2 h-7 w-7 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100"
-                    onClick={() => setAddToFolderTarget(file.eventId)}
-                    size="icon-xs"
-                    variant="ghost"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                  </Button>
-                ) : null}
-              </div>
+              <FileRow
+                file={file}
+                key={file.key}
+                onDragStart={handleDragStart}
+                onJumpToMessage={onJumpToMessage}
+                senderAvatarUrl={
+                  senderAvatarUrls?.get(file.pubkey) ?? null
+                }
+                senderName={senderNames?.get(file.pubkey)}
+              />
             ))}
           </div>
         )}
