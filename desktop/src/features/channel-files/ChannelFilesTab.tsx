@@ -231,12 +231,20 @@ export function ChannelFilesTab({
     async (e: React.DragEvent, folder: FileFolder) => {
       e.preventDefault();
       setDragOverFolder(null);
+      // Check if a folder is being dragged (nesting) vs a file
+      const folderDTag = e.dataTransfer.getData("application/x-folder");
+      if (folderDTag) {
+        // Don't nest a folder into itself or its children
+        if (folderDTag === folder.dTag) return;
+        onSetFolderParent?.(folders.find((f) => f.dTag === folderDTag)!, folder.dTag);
+        return;
+      }
       const eventId = e.dataTransfer.getData("text/plain");
       if (!eventId || !onAddFileToFolder) return;
       if (fileFolderMap?.get(eventId) === folder.dTag) return;
       await onAddFileToFolder(folder, eventId);
     },
-    [fileFolderMap, onAddFileToFolder],
+    [fileFolderMap, onAddFileToFolder, onSetFolderParent, folders],
   );
 
   // ── Selection ────────────────────────────────────────────────────
@@ -519,8 +527,13 @@ export function ChannelFilesTab({
                         ? "bg-primary/10 ring-2 ring-primary/30"
                         : "hover:bg-muted/50"
                     }`}
+                    draggable
                     onDragLeave={handleFolderDragLeave}
                     onDragOver={(e) => handleFolderDragOver(e, folder.dTag)}
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData("application/x-folder", folder.dTag);
+                      e.dataTransfer.effectAllowed = "move";
+                    }}
                     onDrop={(e) => void handleFolderDrop(e, folder)}
                     style={{ paddingLeft: `${12 + depth * 20}px` }}
                   >
