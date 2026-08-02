@@ -877,7 +877,10 @@ export function ChannelScreen({
               <>
                 {channelHeader}
                 {/* Spacer + tab bar that sits below the overlaid header chrome */}
-                <div className="shrink-0 pt-[--buzz-channel-content-top-padding] -mt-[--buzz-channel-content-top-padding]">
+                <div
+                  className="shrink-0"
+                  style={{ marginTop: "var(--buzz-channel-content-top-padding, 5.75rem)" }}
+                >
                   <div className="border-b border-border bg-background px-4">
                     <div className="flex gap-0" role="tablist">
                       <button
@@ -1045,7 +1048,10 @@ export function ChannelScreen({
                   <>
                     {channelHeader}
                     {/* Spacer + tab bar that sits below the overlaid header chrome */}
-                    <div className="shrink-0 pt-[--buzz-channel-content-top-padding] -mt-[--buzz-channel-content-top-padding]">
+                    <div
+                      className="shrink-0"
+                      style={{ marginTop: "var(--buzz-channel-content-top-padding, 5.75rem)" }}
+                    >
                       <div className="border-b border-border bg-background px-4">
                         <div className="flex gap-0" role="tablist">
                           <button
