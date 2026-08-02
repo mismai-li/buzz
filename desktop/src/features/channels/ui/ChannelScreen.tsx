@@ -896,7 +896,6 @@ export function ChannelScreen({
               />
             ) : (
               <>
-                {channelHeader}
                 {/* Spacer + tab bar that sits below the overlaid header chrome */}
                 <div
                   className="shrink-0"
@@ -1066,13 +1065,16 @@ export function ChannelScreen({
                     />
                   </React.Suspense>
                 ) : (
-                  <ChannelFilesTab
-                    files={channelFiles.files}
-                    isLoading={channelFiles.isLoading}
-                    onJumpToMessage={handleJumpToMessage}
-                    senderAvatarUrls={fileSenderAvatarUrls}
-                    senderNames={fileSenderNames}
-                  />
+                  <>
+                    {channelHeader}
+                    <ChannelFilesTab
+                      files={channelFiles.files}
+                      isLoading={channelFiles.isLoading}
+                      onJumpToMessage={handleJumpToMessage}
+                      senderAvatarUrls={fileSenderAvatarUrls}
+                      senderNames={fileSenderNames}
+                    />
+                  </>
                 )}
               </>
             )

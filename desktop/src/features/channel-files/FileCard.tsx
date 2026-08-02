@@ -153,8 +153,8 @@ export function FileRow({
           <UserAvatar
             avatarUrl={senderAvatarUrl ?? null}
             className="h-5 w-5"
-            pubkey={file.pubkey}
-            size={20}
+            displayName={senderName ?? file.pubkey.slice(0, 8)}
+            size="xs"
           />
           {senderName ? (
             <span className="hidden max-w-[100px] truncate sm:inline">
