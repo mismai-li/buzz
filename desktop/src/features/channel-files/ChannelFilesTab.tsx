@@ -7,6 +7,7 @@ import {
   ChevronRight,
   ChevronDown,
   Trash2,
+  X,
 } from "lucide-react";
 import { FileRow, FileRowSkeleton } from "./FileCard";
 import { type FileFolder } from "./useFileFolders";
@@ -365,7 +366,7 @@ export function ChannelFilesTab({
                         </p>
                       ) : (
                         folderFiles.map((file) => (
-                          <div className="flex items-center" key={file.key}>
+                          <div className="group flex items-center" key={file.key}>
                             <div className="flex-1">
                               <FileRow
                                 file={file}
@@ -380,7 +381,7 @@ export function ChannelFilesTab({
                             {onRemoveFileFromFolder ? (
                               <Button
                                 aria-label="Remove from folder"
-                                className="mr-2 h-7 w-7 shrink-0 opacity-0 group-hover:opacity-100"
+                                className="mr-2 h-7 w-7 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
                                 onClick={() =>
                                   void onRemoveFileFromFolder(
                                     folder,
@@ -390,7 +391,7 @@ export function ChannelFilesTab({
                                 size="icon-xs"
                                 variant="ghost"
                               >
-                                <Trash2 className="h-3.5 w-3.5" />
+                                <X className="h-3.5 w-3.5" />
                               </Button>
                             ) : null}
                           </div>
