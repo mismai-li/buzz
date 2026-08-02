@@ -105,9 +105,12 @@ export function useChannelFiles(
       if (entries.size === 0) continue;
 
       // Extract first non-empty line of content as caption
+      const rawContent = event.content?.trim();
       const caption =
-        event.content?.trim().split("\n")[0]?.replace(/!\[(?:image|video)\]\([^)]+\)/g, "").trim() ||
-        undefined;
+        rawContent
+          ?.split("\n")[0]
+          ?.replace(/!\[(?:image|video)\]\([^)]+\)/g, "")
+          ?.trim() || undefined;
 
       for (const [, entry] of entries) {
         result.push({
