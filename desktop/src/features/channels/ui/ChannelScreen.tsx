@@ -1080,6 +1080,7 @@ export function ChannelScreen({
                     onJumpToMessage={handleJumpToMessage}
                     onRemoveFileFromFolder={fileFoldersHook.removeFileFromFolder}
                     onRenameFolder={fileFoldersHook.renameFolder}
+                    onSetFolderParent={fileFoldersHook.setFolderParent}
                     senderAvatarUrls={fileSenderAvatarUrls}
                     senderNames={fileSenderNames}
                   />

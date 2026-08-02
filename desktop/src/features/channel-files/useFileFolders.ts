@@ -9,13 +9,11 @@ const FILE_FOLDER_TAG = "file-folder";
 const FOLDER_QUERY_KEY_PREFIX = "channel-file-folders";
 
 export type FileFolder = {
-  /** The d-tag value (e.g. "files-abc123:q3-reports"). */
   dTag: string;
-  /** Human-readable folder name. */
   name: string;
-  /** Event IDs of files in this folder. */
   fileEventIds: string[];
-  /** The raw relay event (for republishing updates). */
+  /** Parent folder d-tag, if nested. */
+  parentDTag?: string;
   event: RelayEvent;
 };
 
@@ -36,12 +34,13 @@ function parseFolder(event: RelayEvent): FileFolder | null {
   if (!dTag || typeTag?.[1] !== FILE_FOLDER_TAG) return null;
 
   const name = event.tags.find((t) => t[0] === "name")?.[1] ?? "Untitled";
+  const parentDTag = event.tags.find((t) => t[0] === "parent")?.[1];
   const fileEventIds = event.tags
     .filter((t) => t[0] === "e")
     .map((t) => t[1])
     .filter(Boolean);
 
-  return { dTag, name, fileEventIds, event };
+  return { dTag, name, fileEventIds, parentDTag, event };
 }
 
 function folderQueryKey(channelId: string) {
@@ -88,18 +87,20 @@ export function useFileFolders(
   }, [folders]);
 
   const createFolder = useCallback(
-    async (name: string): Promise<FileFolder | null> => {
+    async (name: string, parentDTag?: string): Promise<FileFolder | null> => {
       if (!channelId || !currentPubkey) return null;
       const slug = folderSlug(name);
       const dTag = folderDTag(channelId, slug);
+      const tags: string[][] = [
+        ["d", dTag],
+        ["t", FILE_FOLDER_TAG],
+        ["name", name],
+      ];
+      if (parentDTag) tags.push(["parent", parentDTag]);
       const event = await signRelayEvent({
         kind: FILE_FOLDER_KIND,
         content: "",
-        tags: [
-          ["d", dTag],
-          ["t", FILE_FOLDER_TAG],
-          ["name", name],
-        ],
+        tags,
       });
       relayClient.publishEvent(event);
       await queryClient.invalidateQueries({
@@ -244,6 +245,27 @@ export function useFileFolders(
     [channelId, currentPubkey, queryClient],
   );
 
+  /** Move a folder under another folder (or to root when parentDTag=undefined). */
+  const setFolderParent = useCallback(
+    async (folder: FileFolder, parentDTag?: string) => {
+      if (!channelId || !currentPubkey) return;
+      const tags = folder.event.tags
+        .filter((t) => t[0] !== "parent")
+        .concat(parentDTag ? [["parent", parentDTag]] : []);
+      const event = await signRelayEvent({
+        kind: FILE_FOLDER_KIND,
+        content: "",
+        tags,
+        createdAt: Math.floor(Date.now() / 1000),
+      });
+      relayClient.publishEvent(event);
+      await queryClient.invalidateQueries({
+        queryKey: folderQueryKey(channelId),
+      });
+    },
+    [channelId, currentPubkey, queryClient],
+  );
+
   return {
     folders,
     fileFolderMap,
@@ -254,5 +276,6 @@ export function useFileFolders(
     removeFileFromFolder,
     deleteFolder,
     renameFolder,
+    setFolderParent,
   };
 }

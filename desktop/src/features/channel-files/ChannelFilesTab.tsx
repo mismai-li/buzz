@@ -52,6 +52,7 @@ export type ChannelFilesTabProps = {
   onAddFileToFolder?: (folder: FileFolder, eventId: string) => Promise<unknown>;
   onAddFilesToFolder?: (folder: FileFolder, eventIds: string[]) => Promise<unknown>;
   onRemoveFileFromFolder?: (folder: FileFolder, eventId: string) => Promise<unknown>;
+  onSetFolderParent?: (folder: FileFolder, parentDTag?: string) => Promise<unknown>;
 };
 
 export function ChannelFilesTab({
@@ -67,6 +68,7 @@ export function ChannelFilesTab({
   onAddFileToFolder,
   onAddFilesToFolder,
   onRemoveFileFromFolder,
+  onSetFolderParent,
 }: ChannelFilesTabProps) {
   const [category, setCategory] = useState<FileCategory>("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -151,13 +153,42 @@ export function ChannelFilesTab({
       const dTag = fileFolderMap.get(id);
       if (dTag) {
         if (commonDTag === null) commonDTag = dTag;
-        else if (commonDTag !== dTag) return null; // mixed folders
+        else if (commonDTag !== dTag) return null;
       } else {
-        return null; // some unfiled
+        return null;
       }
     }
     return commonDTag;
   }, [fileFolderMap, selectedIds]);
+
+  // Tree structure: parent → children
+  const folderTree = useMemo(() => {
+    const children = new Map<string | "root", FileFolder[]>();
+    for (const f of folders) {
+      const parent = f.parentDTag ?? "root";
+      const list = children.get(parent) ?? [];
+      list.push(f);
+      children.set(parent, list);
+    }
+    return children;
+  }, [folders]);
+
+  // Flat list with depth for rendering
+  const flatFolders = useMemo(() => {
+    const result: { folder: FileFolder; depth: number }[] = [];
+    const root = folderTree.get("root") ?? [];
+    function walk(parentDTag: string | undefined, depth: number) {
+      const children = parentDTag
+        ? folderTree.get(parentDTag) ?? []
+        : root;
+      for (const f of children) {
+        result.push({ folder: f, depth });
+        walk(f.dTag, depth + 1);
+      }
+    }
+    walk(undefined, 0);
+    return result;
+  }, [folderTree]);
 
   function toggleFolder(dTag: string) {
     setExpandedFolders((prev) => {
@@ -476,7 +507,7 @@ export function ChannelFilesTab({
           </div>
         ) : (
           <div className="divide-y divide-border py-1">
-            {folders.map((folder) => {
+            {flatFolders.map(({ folder, depth }) => {
               const folderFiles = filesByFolder.get(folder.dTag) ?? [];
               const isExpanded = expandedFolders.has(folder.dTag);
 
@@ -491,6 +522,7 @@ export function ChannelFilesTab({
                     onDragLeave={handleFolderDragLeave}
                     onDragOver={(e) => handleFolderDragOver(e, folder.dTag)}
                     onDrop={(e) => void handleFolderDrop(e, folder)}
+                    style={{ paddingLeft: `${12 + depth * 20}px` }}
                   >
                     <button
                       className="flex flex-1 items-center gap-2 text-sm font-medium"
