@@ -506,7 +506,26 @@ export function ChannelFilesTab({
       ) : null}
 
       {/* File list */}
-      <div className="flex-1 overflow-y-auto">
+      <div
+        className="flex-1 overflow-y-auto"
+        onDragOver={(e) => {
+          // Accept folder drops to un-nest (move to root)
+          if (e.dataTransfer.types.includes("application/x-folder")) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "move";
+          }
+        }}
+        onDrop={(e) => {
+          const folderDTag = e.dataTransfer.getData("application/x-folder");
+          if (folderDTag) {
+            e.preventDefault();
+            const folder = folders.find((f) => f.dTag === folderDTag);
+            if (folder?.parentDTag) {
+              void onSetFolderParent?.(folder, undefined);
+            }
+          }
+        }}
+      >
         {filtered.length === 0 && folders.length === 0 ? (
           <div className="flex items-center justify-center p-12">
             <div className="flex max-w-xs flex-col items-center gap-2 text-center">
