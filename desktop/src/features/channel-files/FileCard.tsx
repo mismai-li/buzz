@@ -88,8 +88,11 @@ export type FileRowProps = {
   senderName?: string;
   senderAvatarUrl?: string | null;
   onJumpToMessage?: (eventId: string) => void;
-  /** Called when the user starts dragging this file. */
   onDragStart?: (e: React.DragEvent, eventId: string) => void;
+  /** Selection mode */
+  selecting?: boolean;
+  selected?: boolean;
+  onToggleSelect?: (eventId: string) => void;
 };
 
 export function FileRow({
@@ -98,21 +101,63 @@ export function FileRow({
   senderAvatarUrl,
   onJumpToMessage,
   onDragStart,
+  selecting,
+  selected,
+  onToggleSelect,
 }: FileRowProps) {
   const filename = file.filename ?? file.rawUrl.split("/").pop() ?? "file";
 
+  const handleClick = (e: React.MouseEvent) => {
+    if (selecting) {
+      e.preventDefault();
+      onToggleSelect?.(file.eventId);
+    }
+  };
+
+  const handleCheckboxClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onToggleSelect?.(file.eventId);
+  };
+
   return (
     <div
-      className="group flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-muted/50"
-      draggable={!!onDragStart}
-      onDragStart={(e) => onDragStart?.(e, file.eventId)}
+      className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors ${
+        selected ? "bg-primary/5" : "hover:bg-muted/50"
+      } ${selecting ? "cursor-pointer" : ""}`}
+      draggable={!!onDragStart && !selecting}
+      onClick={handleClick}
+      onDragStart={(e) => {
+        if (!selecting) onDragStart?.(e, file.eventId);
+      }}
     >
+      {selecting ? (
+        <div className="flex shrink-0 items-center" onClick={handleCheckboxClick}>
+          <div
+            className={`flex h-5 w-5 items-center justify-center rounded border-2 transition-colors ${
+              selected
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-muted-foreground/30 hover:border-muted-foreground/50"
+            }`}
+            role="checkbox"
+            aria-checked={selected}
+            aria-label={`Select ${filename}`}
+          >
+            {selected ? (
+              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
       <a
         className="contents"
         download={filename}
         href={file.url}
         rel="noreferrer"
         target="_blank"
+        onClick={(e) => { if (selecting) e.preventDefault(); }}
       >
         <FileRowThumbnail file={file} />
       </a>
@@ -124,6 +169,7 @@ export function FileRow({
           href={file.url}
           rel="noreferrer"
           target="_blank"
+          onClick={(e) => { if (selecting) e.preventDefault(); }}
           title={filename}
         >
           {filename}
@@ -174,37 +220,44 @@ export function FileRow({
         </div>
         <span className="w-16 text-right">{formatDate(file.createdAt)}</span>
 
-        <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-          <button
-            aria-label={`Copy link for ${filename}`}
-            className="rounded p-1 hover:bg-muted"
-            onClick={(e) => {
-              e.preventDefault();
-              void copyToClipboard(file.url, "Link");
-            }}
-            type="button"
-          >
-            <Copy className="h-3.5 w-3.5" />
-          </button>
-          <a
-            aria-label={`Download ${filename}`}
-            className="rounded p-1 hover:bg-muted"
-            download={filename}
-            href={file.url}
-          >
-            <Download className="h-3.5 w-3.5" />
-          </a>
-          {onJumpToMessage ? (
+        {!selecting ? (
+          <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
             <button
-              aria-label="Jump to message"
+              aria-label={`Copy link for ${filename}`}
               className="rounded p-1 hover:bg-muted"
-              onClick={() => onJumpToMessage(file.eventId)}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                void copyToClipboard(file.url, "Link");
+              }}
               type="button"
             >
-              <ArrowRight className="h-3.5 w-3.5" />
+              <Copy className="h-3.5 w-3.5" />
             </button>
-          ) : null}
-        </div>
+            <a
+              aria-label={`Download ${filename}`}
+              className="rounded p-1 hover:bg-muted"
+              download={filename}
+              href={file.url}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Download className="h-3.5 w-3.5" />
+            </a>
+            {onJumpToMessage ? (
+              <button
+                aria-label="Jump to message"
+                className="rounded p-1 hover:bg-muted"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onJumpToMessage(file.eventId);
+                }}
+                type="button"
+              >
+                <ArrowRight className="h-3.5 w-3.5" />
+              </button>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </div>
   );

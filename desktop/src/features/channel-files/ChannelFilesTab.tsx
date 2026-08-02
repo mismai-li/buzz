@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
   Search,
   ArrowUpDown,
@@ -8,6 +8,8 @@ import {
   ChevronDown,
   Trash2,
   X,
+  CheckSquare,
+  FolderInput,
 } from "lucide-react";
 import { FileRow, FileRowSkeleton } from "./FileCard";
 import { type FileFolder } from "./useFileFolders";
@@ -77,6 +79,11 @@ export function ChannelFilesTab({
   const [newFolderName, setNewFolderName] = useState("");
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
 
+  // Selection
+  const [selecting, setSelecting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const lastClickedRef = useRef<string | null>(null);
+
   const filtered = useMemo(() => {
     let result = files;
     if (category !== "all") {
@@ -129,6 +136,16 @@ export function ChannelFilesTab({
     [filtered, fileFolderMap],
   );
 
+  /** All visible file event IDs (for shift-click range). */
+  const allVisibleIds = useMemo(() => {
+    const ids: string[] = [];
+    for (const f of unfiledFiles) ids.push(f.eventId);
+    for (const dTag of expandedFolders) {
+      for (const f of filesByFolder.get(dTag) ?? []) ids.push(f.eventId);
+    }
+    return ids;
+  }, [unfiledFiles, expandedFolders, filesByFolder]);
+
   function toggleFolder(dTag: string) {
     setExpandedFolders((prev) => {
       const next = new Set(prev);
@@ -172,12 +189,93 @@ export function ChannelFilesTab({
       setDragOverFolder(null);
       const eventId = e.dataTransfer.getData("text/plain");
       if (!eventId || !onAddFileToFolder) return;
-      // Don't add if already in this folder
       if (fileFolderMap?.get(eventId) === folder.dTag) return;
       await onAddFileToFolder(folder, eventId);
     },
     [fileFolderMap, onAddFileToFolder],
   );
+
+  // ── Selection ────────────────────────────────────────────────────
+
+  function toggleSelectMode() {
+    if (selecting) {
+      setSelecting(false);
+      setSelectedIds(new Set());
+    } else {
+      setSelecting(true);
+    }
+  }
+
+  function handleToggleSelect(eventId: string, e?: React.MouseEvent) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      const shift = e?.shiftKey ?? false;
+
+      if (shift && lastClickedRef.current) {
+        // Range select: toggle all between last click and this one
+        const lastIdx = allVisibleIds.indexOf(lastClickedRef.current);
+        const thisIdx = allVisibleIds.indexOf(eventId);
+        if (lastIdx !== -1 && thisIdx !== -1) {
+          const [start, end] = lastIdx < thisIdx ? [lastIdx, thisIdx] : [thisIdx, lastIdx];
+          for (let i = start; i <= end; i++) {
+            next.add(allVisibleIds[i]);
+          }
+        }
+      } else if (next.has(eventId)) {
+        next.delete(eventId);
+      } else {
+        next.add(eventId);
+      }
+
+      lastClickedRef.current = eventId;
+      return next;
+    });
+  }
+
+  function selectAll() {
+    setSelectedIds(new Set(allVisibleIds));
+  }
+
+  async function handleBulkMoveToFolder(dTag: string) {
+    if (!onAddFileToFolder) return;
+    const folder = folders.find((f) => f.dTag === dTag);
+    if (!folder) return;
+    // Process all selected files sequentially to avoid race conditions
+    for (const eventId of selectedIds) {
+      if (fileFolderMap?.get(eventId) !== dTag) {
+        await onAddFileToFolder(folder, eventId);
+      }
+    }
+    setSelectedIds(new Set());
+    setSelecting(false);
+    toastSuccess?.(
+      `Moved ${selectedIds.size} file${selectedIds.size !== 1 ? "s" : ""} to ${folder.name}`,
+    );
+  }
+
+  function toastSuccess(msg: string) {
+    import("sonner").then(({ toast }) => toast.success(msg)).catch(() => {});
+  }
+
+  const selectedCount = selectedIds.size;
+
+  // ── Render helpers ────────────────────────────────────────────────
+
+  function renderFileRow(file: ChannelFile) {
+    return (
+      <FileRow
+        file={file}
+        key={file.key}
+        onDragStart={handleDragStart}
+        onJumpToMessage={onJumpToMessage}
+        onToggleSelect={(id) => handleToggleSelect(id)}
+        selected={selectedIds.has(file.eventId)}
+        selecting={selecting}
+        senderAvatarUrl={senderAvatarUrls?.get(file.pubkey) ?? null}
+        senderName={senderNames?.get(file.pubkey)}
+      />
+    );
+  }
 
   if (isLoading) {
     return (
@@ -193,6 +291,54 @@ export function ChannelFilesTab({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      {/* Bulk action bar */}
+      {selecting && selectedCount > 0 ? (
+        <div className="flex shrink-0 items-center gap-2 border-b border-primary/20 bg-primary/5 px-4 py-2">
+          <span className="text-xs font-medium">
+            {selectedCount} selected
+          </span>
+          <Button
+            className="h-7 px-2 text-xs"
+            onClick={selectAll}
+            size="sm"
+            variant="ghost"
+          >
+            Select all
+          </Button>
+          <div className="flex-1" />
+          <div className="relative">
+            <select
+              aria-label="Move selected files to folder"
+              className="h-7 appearance-none rounded border border-border bg-background pl-2 pr-6 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+              onChange={(e) => {
+                if (e.target.value) void handleBulkMoveToFolder(e.target.value);
+              }}
+              value=""
+            >
+              <option disabled value="">
+                <FolderInput className="mr-1 inline h-3 w-3" />
+                Move to folder…
+              </option>
+              {folders.map((f) => (
+                <option key={f.dTag} value={f.dTag}>
+                  {f.name}
+                </option>
+              ))}
+            </select>
+            <FolderInput className="pointer-events-none absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
+          </div>
+          <Button
+            className="h-7 px-2 text-xs"
+            onClick={toggleSelectMode}
+            size="sm"
+            variant="ghost"
+          >
+            <X className="mr-1 h-3.5 w-3.5" />
+            Cancel
+          </Button>
+        </div>
+      ) : null}
+
       {/* Toolbar */}
       <div className="shrink-0 space-y-2 border-b border-border px-4 pb-3 pt-3">
         <div className="flex items-center gap-1 overflow-x-auto [scrollbar-width:none]">
@@ -253,6 +399,25 @@ export function ChannelFilesTab({
             <ArrowUpDown className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
           </div>
 
+          <Button
+            className="h-8 shrink-0 gap-1 px-2 text-xs"
+            onClick={toggleSelectMode}
+            size="sm"
+            variant={selecting ? "secondary" : "outline"}
+          >
+            {selecting ? (
+              <>
+                <X className="h-3.5 w-3.5" />
+                Cancel
+              </>
+            ) : (
+              <>
+                <CheckSquare className="h-3.5 w-3.5" />
+                Select
+              </>
+            )}
+          </Button>
+
           {onCreateFolder ? (
             <Button
               className="h-8 shrink-0 gap-1 px-2 text-xs"
@@ -261,7 +426,7 @@ export function ChannelFilesTab({
               variant="outline"
             >
               <FolderPlus className="h-3.5 w-3.5" />
-              New Folder
+              New
             </Button>
           ) : null}
         </div>
@@ -313,7 +478,6 @@ export function ChannelFilesTab({
           </div>
         ) : (
           <div className="divide-y divide-border py-1">
-            {/* Folders — droppable targets */}
             {folders.map((folder) => {
               const folderFiles = filesByFolder.get(folder.dTag) ?? [];
               const isExpanded = expandedFolders.has(folder.dTag);
@@ -362,31 +526,20 @@ export function ChannelFilesTab({
                     <div className="divide-y divide-border border-l-2 border-l-muted ml-6">
                       {folderFiles.length === 0 ? (
                         <p className="px-3 py-4 text-xs text-muted-foreground">
-                          Empty folder — drag files here to add them.
+                          Empty folder — drag files here or use Select to add them.
                         </p>
                       ) : (
                         folderFiles.map((file) => (
                           <div className="group flex items-center" key={file.key}>
                             <div className="flex-1">
-                              <FileRow
-                                file={file}
-                                onDragStart={handleDragStart}
-                                onJumpToMessage={onJumpToMessage}
-                                senderAvatarUrl={
-                                  senderAvatarUrls?.get(file.pubkey) ?? null
-                                }
-                                senderName={senderNames?.get(file.pubkey)}
-                              />
+                              {renderFileRow(file)}
                             </div>
-                            {onRemoveFileFromFolder ? (
+                            {onRemoveFileFromFolder && !selecting ? (
                               <Button
                                 aria-label="Remove from folder"
                                 className="mr-2 h-7 w-7 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
                                 onClick={() =>
-                                  void onRemoveFileFromFolder(
-                                    folder,
-                                    file.eventId,
-                                  )
+                                  void onRemoveFileFromFolder(folder, file.eventId)
                                 }
                                 size="icon-xs"
                                 variant="ghost"
@@ -403,26 +556,13 @@ export function ChannelFilesTab({
               );
             })}
 
-            {/* Drag hint when hovering a folder */}
             {dragOverFolder ? (
               <div className="px-3 py-1.5 text-xs text-muted-foreground">
                 Drop file to add to folder
               </div>
             ) : null}
 
-            {/* Unfiled files — draggable */}
-            {unfiledFiles.map((file) => (
-              <FileRow
-                file={file}
-                key={file.key}
-                onDragStart={handleDragStart}
-                onJumpToMessage={onJumpToMessage}
-                senderAvatarUrl={
-                  senderAvatarUrls?.get(file.pubkey) ?? null
-                }
-                senderName={senderNames?.get(file.pubkey)}
-              />
-            ))}
+            {unfiledFiles.map((file) => renderFileRow(file))}
           </div>
         )}
       </div>
