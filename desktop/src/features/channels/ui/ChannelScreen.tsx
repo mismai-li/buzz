@@ -82,9 +82,9 @@ import { useChannelProfilePanel } from "./useChannelProfilePanel";
 import { useChannelRouteTarget } from "./useChannelRouteTarget";
 import { useChannelUnreadState } from "./useChannelUnreadState";
 import type { ChannelScreenProps } from "./ChannelScreen.types";
-import { ChannelFilesTab } from "@features/channel-files/ChannelFilesTab";
-import { useChannelFiles } from "@features/channel-files/useChannelFiles";
-import { useFileFolders } from "@features/channel-files/useFileFolders";
+import { ChannelFilesTab } from "@/features/channel-files/ChannelFilesTab";
+import { useChannelFiles } from "@/features/channel-files/useChannelFiles";
+import { useFileFolders } from "@/features/channel-files/useFileFolders";
 const HEADER_ACTIONS_COMPACT_BREAKPOINT_PX = 760,
   CHANNEL_TAB_CHAT = "chat",
   CHANNEL_TAB_FILES = "files",
