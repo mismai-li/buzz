@@ -7,10 +7,6 @@ import {
   ChevronRight,
   ChevronDown,
   Trash2,
-  X,
-  CheckSquare,
-  Square,
-  FolderInput,
 } from "lucide-react";
 import { FileRow, FileRowSkeleton } from "./FileCard";
 import { type FileFolder } from "./useFileFolders";
@@ -57,8 +53,6 @@ export type ChannelFilesTabProps = {
   ) => Promise<unknown>;
 };
 
-type SelectMode = "none" | "single" | "multi";
-
 export function ChannelFilesTab({
   files,
   isLoading,
@@ -81,11 +75,6 @@ export function ChannelFilesTab({
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
-
-  // Multi-select state
-  const [selectMode, setSelectMode] = useState<SelectMode>("none");
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [bulkTargetFolder, setBulkTargetFolder] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     let result = files;
@@ -182,73 +171,12 @@ export function ChannelFilesTab({
       setDragOverFolder(null);
       const eventId = e.dataTransfer.getData("text/plain");
       if (!eventId || !onAddFileToFolder) return;
+      // Don't add if already in this folder
       if (fileFolderMap?.get(eventId) === folder.dTag) return;
       await onAddFileToFolder(folder, eventId);
     },
     [fileFolderMap, onAddFileToFolder],
   );
-
-  // Selection handlers
-  function toggleSelectMode() {
-    if (selectMode !== "none") {
-      setSelectMode("none");
-      setSelectedIds(new Set());
-      setBulkTargetFolder(null);
-    } else {
-      setSelectMode("multi");
-    }
-  }
-
-  function handleSelect(eventId: string, checked: boolean) {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (checked) next.add(eventId);
-      else next.delete(eventId);
-      return next;
-    });
-  }
-
-  function selectAll() {
-    const allIds = new Set(unfiledFiles.map((f) => f.eventId));
-    // Also include files inside expanded folders
-    for (const dTag of expandedFolders) {
-      for (const f of filesByFolder.get(dTag) ?? []) {
-        allIds.add(f.eventId);
-      }
-    }
-    setSelectedIds(allIds);
-  }
-
-  async function handleBulkMoveToFolder(folder: FileFolder) {
-    if (!onAddFileToFolder) return;
-    const promises: Promise<unknown>[] = [];
-    for (const eventId of selectedIds) {
-      if (fileFolderMap?.get(eventId) !== folder.dTag) {
-        promises.push(onAddFileToFolder(folder, eventId));
-      }
-    }
-    await Promise.all(promises);
-    setSelectedIds(new Set());
-    setSelectMode("none");
-    setBulkTargetFolder(null);
-  }
-
-  // Render helpers
-  function renderFileRow(file: ChannelFile, opts?: { inFolder?: FileFolder }) {
-    return (
-      <FileRow
-        file={file}
-        key={file.key}
-        onDragStart={handleDragStart}
-        onJumpToMessage={onJumpToMessage}
-        onSelect={handleSelect}
-        selectable={selectMode !== "none"}
-        selected={selectedIds.has(file.eventId)}
-        senderAvatarUrl={senderAvatarUrls?.get(file.pubkey) ?? null}
-        senderName={senderNames?.get(file.pubkey)}
-      />
-    );
-  }
 
   if (isLoading) {
     return (
@@ -262,74 +190,8 @@ export function ChannelFilesTab({
     );
   }
 
-  const selectedCount = selectedIds.size;
-
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {/* Bulk action bar */}
-      {selectMode !== "none" && selectedCount > 0 ? (
-        <div className="flex items-center gap-2 border-b border-border bg-muted/30 px-4 py-2">
-          <span className="text-xs font-medium">
-            {selectedCount} selected
-          </span>
-          <Button
-            className="h-7 px-2 text-xs"
-            onClick={selectAll}
-            size="sm"
-            variant="ghost"
-          >
-            Select all
-          </Button>
-          <div className="flex-1" />
-          {bulkTargetFolder ? (
-            <>
-              <span className="text-xs text-muted-foreground">
-                Choose folder:
-              </span>
-              {folders.map((f) => (
-                <Button
-                  className="h-7 px-2 text-xs"
-                  key={f.dTag}
-                  onClick={() => void handleBulkMoveToFolder(f)}
-                  size="sm"
-                  variant="outline"
-                >
-                  <Folder className="mr-1 h-3 w-3" />
-                  {f.name}
-                </Button>
-              ))}
-              <Button
-                className="h-7 px-2 text-xs"
-                onClick={() => setBulkTargetFolder(null)}
-                size="sm"
-                variant="ghost"
-              >
-                Cancel
-              </Button>
-            </>
-          ) : (
-            <Button
-              className="h-7 gap-1 px-2 text-xs"
-              onClick={() => setBulkTargetFolder("selecting")}
-              size="sm"
-              variant="outline"
-            >
-              <FolderInput className="h-3.5 w-3.5" />
-              Move to folder
-            </Button>
-          )}
-          <Button
-            className="h-7 px-2 text-xs"
-            onClick={toggleSelectMode}
-            size="sm"
-            variant="ghost"
-          >
-            <X className="mr-1 h-3.5 w-3.5" />
-            Cancel
-          </Button>
-        </div>
-      ) : null}
-
       {/* Toolbar */}
       <div className="shrink-0 space-y-2 border-b border-border px-4 pb-3 pt-3">
         <div className="flex items-center gap-1 overflow-x-auto [scrollbar-width:none]">
@@ -390,28 +252,6 @@ export function ChannelFilesTab({
             <ArrowUpDown className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
           </div>
 
-          <Button
-            aria-label={
-              selectMode !== "none" ? "Cancel selection" : "Select files"
-            }
-            className="h-8 shrink-0 gap-1 px-2 text-xs"
-            onClick={toggleSelectMode}
-            size="sm"
-            variant={selectMode !== "none" ? "secondary" : "outline"}
-          >
-            {selectMode !== "none" ? (
-              <>
-                <X className="h-3.5 w-3.5" />
-                Cancel
-              </>
-            ) : (
-              <>
-                <CheckSquare className="h-3.5 w-3.5" />
-                Select
-              </>
-            )}
-          </Button>
-
           {onCreateFolder ? (
             <Button
               className="h-8 shrink-0 gap-1 px-2 text-xs"
@@ -420,7 +260,7 @@ export function ChannelFilesTab({
               variant="outline"
             >
               <FolderPlus className="h-3.5 w-3.5" />
-              New
+              New Folder
             </Button>
           ) : null}
         </div>
@@ -472,6 +312,7 @@ export function ChannelFilesTab({
           </div>
         ) : (
           <div className="divide-y divide-border py-1">
+            {/* Folders — droppable targets */}
             {folders.map((folder) => {
               const folderFiles = filesByFolder.get(folder.dTag) ?? [];
               const isExpanded = expandedFolders.has(folder.dTag);
@@ -524,14 +365,22 @@ export function ChannelFilesTab({
                         </p>
                       ) : (
                         folderFiles.map((file) => (
-                          <div className="group flex items-center" key={file.key}>
+                          <div className="flex items-center" key={file.key}>
                             <div className="flex-1">
-                              {renderFileRow(file, { inFolder: folder })}
+                              <FileRow
+                                file={file}
+                                onDragStart={handleDragStart}
+                                onJumpToMessage={onJumpToMessage}
+                                senderAvatarUrl={
+                                  senderAvatarUrls?.get(file.pubkey) ?? null
+                                }
+                                senderName={senderNames?.get(file.pubkey)}
+                              />
                             </div>
                             {onRemoveFileFromFolder ? (
                               <Button
                                 aria-label="Remove from folder"
-                                className="mr-2 h-7 w-7 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
+                                className="mr-2 h-7 w-7 shrink-0 opacity-0 group-hover:opacity-100"
                                 onClick={() =>
                                   void onRemoveFileFromFolder(
                                     folder,
@@ -541,7 +390,7 @@ export function ChannelFilesTab({
                                 size="icon-xs"
                                 variant="ghost"
                               >
-                                <X className="h-3.5 w-3.5" />
+                                <Trash2 className="h-3.5 w-3.5" />
                               </Button>
                             ) : null}
                           </div>
@@ -553,13 +402,26 @@ export function ChannelFilesTab({
               );
             })}
 
+            {/* Drag hint when hovering a folder */}
             {dragOverFolder ? (
               <div className="px-3 py-1.5 text-xs text-muted-foreground">
                 Drop file to add to folder
               </div>
             ) : null}
 
-            {unfiledFiles.map((file) => renderFileRow(file))}
+            {/* Unfiled files — draggable */}
+            {unfiledFiles.map((file) => (
+              <FileRow
+                file={file}
+                key={file.key}
+                onDragStart={handleDragStart}
+                onJumpToMessage={onJumpToMessage}
+                senderAvatarUrl={
+                  senderAvatarUrls?.get(file.pubkey) ?? null
+                }
+                senderName={senderNames?.get(file.pubkey)}
+              />
+            ))}
           </div>
         )}
       </div>

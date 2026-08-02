@@ -88,11 +88,8 @@ export type FileRowProps = {
   senderName?: string;
   senderAvatarUrl?: string | null;
   onJumpToMessage?: (eventId: string) => void;
+  /** Called when the user starts dragging this file. */
   onDragStart?: (e: React.DragEvent, eventId: string) => void;
-  /** Selection (multi-select mode) */
-  selectable?: boolean;
-  selected?: boolean;
-  onSelect?: (eventId: string, selected: boolean) => void;
 };
 
 export function FileRow({
@@ -101,30 +98,15 @@ export function FileRow({
   senderAvatarUrl,
   onJumpToMessage,
   onDragStart,
-  selectable,
-  selected,
-  onSelect,
 }: FileRowProps) {
   const filename = file.filename ?? file.rawUrl.split("/").pop() ?? "file";
 
   return (
     <div
-      className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-muted/50 ${
-        selected ? "bg-primary/5" : ""
-      }`}
+      className="group flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-muted/50"
       draggable={!!onDragStart}
       onDragStart={(e) => onDragStart?.(e, file.eventId)}
     >
-      {selectable ? (
-        <input
-          aria-label={`Select ${filename}`}
-          checked={selected ?? false}
-          className="h-4 w-4 shrink-0 accent-primary"
-          onChange={(e) => onSelect?.(file.eventId, e.target.checked)}
-          type="checkbox"
-        />
-      ) : null}
-
       <a
         className="contents"
         download={filename}
